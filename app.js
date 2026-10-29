@@ -320,7 +320,7 @@ function screenLesson(id, i) {
   const c = COURS.find((x) => x.id === id), sec = c.sections[i], n = c.sections.length, p = coursProg(id);
   const isLast = i === n - 1;
   render(`
-    <div class="row" style="margin-bottom:10px"><button class="link" id="back" aria-label="Fermer">✕</button>
+    <div class="row" style="margin-bottom:10px"><button class="quitbtn" id="back">✕ Fermer</button>
       <div class="progress"><i style="width:${Math.round((i + 1) / n * 100)}%"></i></div><span class="small muted">${i + 1}/${n}</span></div>
     <span class="chip">${c.icon} ${c.title}</span>
     ${i === 0 ? `<p class="small muted" style="margin-top:8px">📓 Dans ton cahier : ${c.cahier}</p>` : ''}
@@ -385,7 +385,7 @@ function screenExo(id, k) {
   const c = COURS.find((x) => x.id === id), e = c.exos[k], p = coursProg(id), n = c.exos.length;
   let shown = 0;
   render(`
-    <div class="row" style="margin-bottom:10px"><button class="link" id="back" aria-label="Fermer">✕</button>
+    <div class="row" style="margin-bottom:10px"><button class="quitbtn" id="back">✕ Fermer</button>
       <div class="progress"><i style="width:${Math.round((k + 1) / n * 100)}%"></i></div><span class="small muted">${k + 1}/${n}</span></div>
     <span class="chip">✏️ Exercice du cahier corrigé</span>
     <div class="card pop" style="margin-top:10px">
@@ -445,15 +445,31 @@ function nextItem() {
   if ((RUN.mode === 'train' || RUN.mode === 'focus') && !S.seenFiche[item.skill]) return screenFicheFirst(item.skill);
   screenItem();
 }
+function askQuit() {
+  if (document.getElementById('qmodal')) return;
+  const test = RUN && (RUN.mode === 'diag' || RUN.mode === 'boss');
+  const msg = RUN && RUN.mode === 'diag' ? 'L’évaluation reprendra depuis le début la prochaine fois.'
+    : RUN && RUN.mode === 'boss' ? 'Ce contrôle blanc ne sera pas noté. Tu pourras le retenter quand tu veux.'
+    : 'Tout ce que tu as fait est déjà enregistré (XP, médailles, progrès).';
+  document.body.insertAdjacentHTML('beforeend', `<div class="modal" id="qmodal" role="dialog" aria-modal="true"><div class="card stack pop">
+    <h2>Quitter ${test ? 'maintenant' : 'la séance'} ?</h2><p class="muted">${msg}</p>
+    <div class="actions"><button class="btn ghost" id="qno">Continuer</button><button class="btn" id="qyes">Quitter</button></div></div></div>`);
+  const close = () => { const m = document.getElementById('qmodal'); if (m) m.remove(); };
+  document.getElementById('qno').onclick = close;
+  document.getElementById('qmodal').onclick = (e) => { if (e.target.id === 'qmodal') close(); };
+  document.getElementById('qyes').onclick = () => { close(); stopTimer(); saveState(); flush(); RUN = null; route(); };
+}
 function screenFicheFirst(id) {
-  render(`<div class="card stack pop"><span class="chip">📘 Nouvelle fiche</span>${ficheHtml(id)}<button class="btn" id="go">J’ai lu, on s’entraîne</button></div>`);
+  render(`<div class="row" style="margin-bottom:10px"><button class="quitbtn" id="quit">✕ Quitter</button></div>
+    <div class="card stack pop"><span class="chip">📘 Nouvelle fiche</span>${ficheHtml(id)}<button class="btn" id="go">J’ai lu, on s’entraîne</button></div>`);
+  document.getElementById('quit').onclick = askQuit;
   document.getElementById('go').onclick = () => { S.seenFiche[id] = true; saveState(); RUN.cur.t0 = Date.now(); screenItem(); };
 }
 function headerHtml() {
   const it = RUN.cur.item, sk = SKILLS.find((s) => s.id === it.skill);
   const pct = Math.round(RUN.idx / RUN.total * 100);
   const label = { diag: 'Évaluation', train: 'Séance', boss: 'Boss', bat: 'Enquête', focus: 'Entraînement' }[RUN.mode];
-  return `<div class="row" style="margin-bottom:10px"><button class="link" id="quit" aria-label="Quitter">✕</button><div class="progress"><i style="width:${pct}%"></i></div>
+  return `<div class="row" style="margin-bottom:10px"><button class="quitbtn" id="quit">✕ Quitter</button><div class="progress"><i style="width:${pct}%"></i></div>
       <span class="small muted">${RUN.idx + 1}/${RUN.total}</span>${RUN.mode === 'boss' ? '<span class="pill timer" id="timer"></span>' : ''}</div>
     <div class="row between"><span class="chip">${sk.icon} ${sk.name}</span><span class="small muted">${label} <span class="dots">${[1, 2, 3].map((l) => `<i class="${l <= it.level ? 'on' : ''}"></i>`).join('')}</span></span></div>`;
 }
@@ -479,7 +495,7 @@ function screenItem() {
       <div id="fb"></div>
       <div id="btns">${btns}</div>
     </div>`);
-  document.getElementById('quit').onclick = () => { if (confirm('Quitter ? Ce que tu as fait est déjà enregistré.')) { stopTimer(); route(); } };
+  document.getElementById('quit').onclick = askQuit;
   if (it.type === 'num') {
     const inp = document.getElementById('ans'); inp.focus({ preventScroll: true });
     inp.onkeydown = (e) => { if (e.key === 'Enter') checkNum(); };

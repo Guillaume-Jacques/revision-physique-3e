@@ -160,3 +160,8 @@ td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 .svg .s-r1 { fill: var(--warn); }
 .svg .s-r2 { fill: var(--bad); }
 .svg .s-head { fill: var(--accent); }
+
+.quitbtn { flex: none; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: .88em; min-height: 40px; box-shadow: var(--shadow); }
+.quitbtn:active { background: var(--accent-soft); }
+.modal { position: fixed; inset: 0; background: rgba(20,18,42,.55); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.modal .card { width: 100%; max-width: 420px; margin: 0; }

@@ -387,11 +387,14 @@ function screenExo(id, k) {
   render(`
     <div class="row" style="margin-bottom:10px"><button class="quitbtn" id="back">✕ Fermer</button>
       <div class="progress"><i style="width:${Math.round((k + 1) / n * 100)}%"></i></div><span class="small muted">${k + 1}/${n}</span></div>
-    <span class="chip">✏️ Exercice du cahier corrigé</span>
+    <span class="chip">✏️ Exercice corrigé</span>
     <div class="card pop" style="margin-top:10px">
       <h2>${e.title}</h2>
       <div class="question">${e.enonce}</div>
-      <p class="small muted">Essaie d’abord sur ton cahier, puis révèle la correction étape par étape.</p>
+      ${e.ans != null ? `<p class="small muted">Fais le calcul sur ton cahier, tape ta réponse, puis vérifie.</p>
+      <div class="answer"><input id="exans" inputmode="decimal" autocomplete="off" placeholder="Ta réponse"><span class="unit">${esc(e.unit || '')}</span></div>
+      <button class="btn" id="excheck">Vérifier ma réponse</button><div id="exfb"></div>`
+      : `<p class="small muted">Essaie d’abord sur ton cahier, puis révèle la correction étape par étape.</p>`}
       <ol class="steps" id="steps"></ol>
       <div id="end"></div>
       <button class="btn ghost" id="reveal">Voir l’étape 1</button>
@@ -399,6 +402,28 @@ function screenExo(id, k) {
     <div class="actions">${k > 0 ? '<button class="btn ghost" id="prev">← Avant</button>' : '<span></span>'}
       <button class="btn" id="next">${k === n - 1 ? 'Terminer ✓' : 'Exercice suivant →'}</button></div>`);
   const btn = document.getElementById('reveal');
+  const ck = document.getElementById('excheck');
+  if (ck) {
+    let tries = 0;
+    const check = () => {
+      const raw = document.getElementById('exans').value, x = parseNum(raw), out = document.getElementById('exfb');
+      if (x === null) { out.innerHTML = '<div class="fb hint">Écris un nombre, par exemple 3,25</div>'; return; }
+      tries++;
+      const tol = e.tol ?? Math.max(Math.abs(e.ans) * 0.01, 0.01), ok = Math.abs(x - e.ans) <= tol;
+      if (ok) {
+        out.innerHTML = `<div class="fb good pop"><b>Bravo, c’est juste !</b>${tries === 1 ? ' +5 XP' : ''} Regarde quand même la correction pour vérifier ta méthode.</div>`;
+        if (tries === 1) addXP(5);
+        ck.remove();
+      } else {
+        const g = genericError(x, e.ans);
+        out.innerHTML = `<div class="fb bad pop"><b>Pas encore.</b> ${g ? g.msg : 'Vérifie ton calcul.'} ${tries >= 2 ? 'Révèle l’étape 1 pour te débloquer.' : 'Tu peux réessayer.'}</div>`;
+      }
+      if (ok || tries === 1) logAttempt({ mode: 'cours', skill: c.skills[0], item_id: `${id}-e${k}`, level: 2, correct: ok, tries, hints: shown, error_code: ok ? null : (genericError(x, e.ans) || {}).code || 'autre', answer: String(raw).slice(0, 60), question: stripTags(e.enonce).slice(0, 400), ms: 0 });
+      saveState();
+    };
+    ck.onclick = check;
+    document.getElementById('exans').onkeydown = (ev) => { if (ev.key === 'Enter') check(); };
+  }
   btn.onclick = () => {
     if (shown < e.steps.length) {
       document.getElementById('steps').insertAdjacentHTML('beforeend', `<li class="pop">${e.steps[shown]}</li>`);

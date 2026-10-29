@@ -73,6 +73,31 @@ const COURS = [
     skills: ['V1'],
     sections: [
       {
+        title: 'Un instant ou une durée ?',
+        html: `
+          <p>En physique, le mot « temps » cache deux idées différentes :</p>
+          <table class="tbl">
+            <tr><th></th><th>Ce que c’est</th><th>Exemple</th><th>Se mesure avec</th></tr>
+            <tr><td><b>Un instant</b> (noté t)</td><td>un moment précis, une « heure sur l’horloge »</td><td>« le bus part à 7 h 50 »</td><td>une montre, une horloge</td></tr>
+            <tr><td><b>Une durée</b> (notée Δt)</td><td>le temps qui s’écoule <b>entre deux instants</b></td><td>« le trajet dure 25 min »</td><td>un chronomètre</td></tr>
+          </table>
+          <p>Le symbole <b>Δ</b> se lit « delta ». Il veut dire « on fait une soustraction » :</p>
+          <div class="formula">Δt = instant final − instant initial</div>
+          <div class="ex"><b>Exemple :</b> Lina part de chez elle à 8 h 10 et arrive au collège à 8 h 35.<br>
+          Δt = 8 h 35 − 8 h 10 = <b>25 min</b>. Les deux horaires sont des instants, les 25 min sont une durée.</div>
+          <p>Dans les formules de vitesse, c’est toujours une <b>durée</b> qu’on utilise. Au collège, on l’écrit souvent simplement t.</p>`,
+        retenir: 'Un instant = une heure sur l’horloge. Une durée = l’écart entre deux instants (Δt = fin − début).',
+        quiz: [
+          { q: '« Le film commence à 20 h 45. » Il s’agit :', choices: [
+            { t: 'D’un instant', ok: true },
+            { t: 'D’une durée', msg: '20 h 45 est un moment précis, lu sur une horloge : c’est un instant. Une durée serait « le film dure 2 h ».' }] },
+          { q: 'Un match commence à 15 h 00 et se termine à 16 h 50. Sa durée est :', choices: [
+            { t: '1 h 50 min', ok: true },
+            { t: '16 h 50', msg: '16 h 50, c’est l’instant de fin. La durée est l’écart : 16 h 50 − 15 h 00 = 1 h 50 min.' },
+            { t: '1,5 h', msg: 'Attention : 1 h 50 min n’est pas 1,5 h (1,5 h = 1 h 30 min). La durée est 1 h 50 min.' }] },
+        ],
+      },
+      {
         title: 'Les mots de base',
         html: `
           <p>La partie de la physique qui étudie les mouvements s’appelle la <b>mécanique</b>.</p>
@@ -108,6 +133,32 @@ const COURS = [
           { q: 'Un arbre au bord de la route est, <b>par rapport à la voiture qui passe</b> :', choices: [
             { t: 'En mouvement', ok: true },
             { t: 'Immobile', msg: 'Vu de la voiture, la distance avec l’arbre change : il est en mouvement par rapport à la voiture. C’est pour ça que les arbres « défilent » par la fenêtre !' }] },
+        ],
+      },
+      {
+        title: 'Qui bouge pour qui ? Le tableau',
+        html: `
+          <p>Quand plusieurs personnes sont en jeu, on peut ranger les réponses dans un tableau. On se pose toujours la même question : <b>la distance entre les deux change-t-elle ?</b></p>
+          <div class="ex"><b>La situation :</b> Inès et son frère Hugo sont assis dans un bus qui roule. Mme Martin attend à l’arrêt et les voit passer.</div>
+          <p class="small muted">Lecture : chaque ligne = la personne qu’on regarde ; chaque colonne = celle qui regarde.</p>
+          <table class="tbl c">
+            <tr><th></th><th>Inès</th><th>Hugo</th><th>Mme Martin</th></tr>
+            <tr><td><b>Inès</b></td><td>—</td><td>immobile</td><td>bouge</td></tr>
+            <tr><td><b>Hugo</b></td><td>immobile</td><td>—</td><td>bouge</td></tr>
+            <tr><td><b>Mme Martin</b></td><td>bouge</td><td>bouge</td><td>—</td></tr>
+          </table>
+          <ul class="fiche">
+            <li>Inès et Hugo restent à la même distance l’un de l’autre : immobiles l’un pour l’autre.</li>
+            <li>La distance entre le bus et l’arrêt change : Mme Martin voit les enfants bouger… et les enfants voient Mme Martin s’éloigner !</li>
+            <li>Une personne ne s’observe pas elle-même : on met un tiret.</li>
+          </ul>
+          <p>« bouge » = en mouvement pour l’observateur.</p>
+          <p><b>La règle de réciprocité :</b> si A est en mouvement pour B, alors B est aussi en mouvement pour A. Le tableau est donc « symétrique ».</p>`,
+        retenir: 'Si A bouge pour B, alors B bouge pour A. Si la distance entre eux ne change pas, ils sont immobiles l’un pour l’autre.',
+        quiz: [
+          { q: 'Hugo est en mouvement pour Mme Martin. Alors, pour Hugo, Mme Martin est :', choices: [
+            { t: 'En mouvement', ok: true },
+            { t: 'Immobile', msg: 'C’est réciproque : la distance entre eux change, donc chacun est en mouvement pour l’autre. Depuis le bus, Hugo voit Mme Martin s’éloigner.' }] },
         ],
       },
       {
@@ -152,6 +203,30 @@ const COURS = [
         ],
       },
       {
+        title: 'Tous les mouvements possibles',
+        html: `
+          <p>En croisant la <b>forme de la trajectoire</b> et l’<b>évolution de la vitesse</b>, on obtient 9 types de mouvements :</p>
+          <table class="tbl c">
+            <tr><th>Vitesse ↓</th><th>Droite</th><th>Cercle</th><th>Autre courbe</th></tr>
+            <tr><td><b>Constante</b></td><td>rectiligne uniforme</td><td>circulaire uniforme</td><td>curviligne uniforme</td></tr>
+            <tr><td><b>Augmente</b></td><td>rectiligne accéléré</td><td>circulaire accéléré</td><td>curviligne accéléré</td></tr>
+            <tr><td><b>Diminue</b></td><td>rectiligne ralenti</td><td>circulaire ralenti</td><td>curviligne ralenti</td></tr>
+          </table>
+          <div class="ex"><b>Exemples :</b><br>
+          • Un manège qui démarre : la nacelle tourne de plus en plus vite → <b>circulaire accéléré</b>.<br>
+          • Le même manège à pleine vitesse → <b>circulaire uniforme</b>.<br>
+          • Une luge qui dévale une piste sinueuse en prenant de la vitesse → <b>curviligne accéléré</b>.<br>
+          • Un ascenseur qui arrive à l’étage → <b>rectiligne ralenti</b>.</div>
+          <p>Pour répondre, on donne toujours <b>les deux mots</b> : le premier pour la trajectoire, le second pour la vitesse.</p>`,
+        retenir: 'Nom d’un mouvement = forme de la trajectoire (rectiligne, circulaire, curviligne) + vitesse (uniforme, accéléré, ralenti).',
+        quiz: [
+          { q: 'Un manège arrive en fin de tour et s’arrête doucement. Le mouvement d’un cheval de bois est :', choices: [
+            { t: 'Circulaire ralenti', ok: true },
+            { t: 'Circulaire uniforme', msg: 'Le manège s’arrête : sa vitesse diminue, ce n’est pas uniforme.' },
+            { t: 'Rectiligne ralenti', msg: 'Le cheval tourne autour de l’axe du manège : la trajectoire est un cercle.' }] },
+        ],
+      },
+      {
         title: 'Direction, sens et valeur',
         html: `
           <p>Donner une vitesse, ce n’est pas seulement donner un nombre. Pour la décrire complètement, il faut <b>trois informations</b> :</p>
@@ -189,7 +264,35 @@ const COURS = [
         ],
       },
     ],
-    exos: [],
+    exos: [
+      {
+        title: 'Instant ou durée ?',
+        enonce: 'Pour chaque phrase, dis s’il s’agit d’un instant ou d’une durée. 1) « Le cours de physique commence à 10 h 05. » 2) « La récréation dure 15 minutes. » 3) « Mon train part à 18 h 12. » 4) « J’ai révisé pendant 40 minutes. » 5) « Le réveil a sonné à 6 h 45. »',
+        steps: ['Méthode : une heure lue sur une horloge est un instant ; un écart entre deux moments (« pendant », « dure ») est une durée.', '1) 10 h 05 : instant. 3) 18 h 12 : instant. 5) 6 h 45 : instant.', '2) 15 minutes : durée. 4) 40 minutes : durée.'],
+        rep: 'Instants : phrases 1, 3 et 5. Durées : phrases 2 et 4.',
+        piege: 'Les deux s’écrivent avec des heures et des minutes : c’est le sens de la phrase qui permet de trancher.',
+      },
+      {
+        title: 'Lire des chronophotographies',
+        enonce: 'Trois chronophotographies (une photo à intervalles réguliers). A) Les positions sont sur un cercle et toujours également espacées. B) Les positions sont sur une droite et de plus en plus rapprochées. C) Les positions forment une courbe et sont de plus en plus écartées. Nomme chaque mouvement.',
+        steps: ['Pour chaque photo, on regarde d’abord la forme (droite, cercle, autre courbe), puis les écarts (égaux, qui grandissent, qui rapetissent).', 'A) cercle + écarts égaux → circulaire uniforme.', 'B) droite + écarts qui rapetissent → rectiligne ralenti.', 'C) courbe + écarts qui grandissent → curviligne accéléré.'],
+        rep: 'A : circulaire uniforme • B : rectiligne ralenti • C : curviligne accéléré.',
+        piege: '« Rapprochées » veut dire que l’objet avance de moins en moins à chaque photo : il ralentit (et non l’inverse).',
+      },
+      {
+        title: 'Le tableau des observateurs',
+        enonce: 'Sami et sa mère font un tour de grande roue, assis dans la même nacelle. Le père de Sami les regarde depuis le sol. Complète : qui est immobile, qui est en mouvement, pour qui ?',
+        steps: ['On compare les distances deux à deux.', 'Sami et sa mère : même nacelle, distance constante → immobiles l’un pour l’autre.', 'Sami (ou sa mère) et le père : la nacelle tourne, la distance change → en mouvement l’un pour l’autre (réciprocité).'],
+        rep: 'Sami et sa mère sont immobiles l’un pour l’autre ; tous deux sont en mouvement pour le père, et le père est en mouvement pour eux.',
+      },
+      {
+        title: 'Une vitesse sur une chronophotographie',
+        enonce: 'Une chronophotographie d’un skateur est prise avec une photo toutes les 0,04 s. Entre deux positions voisines, le skateur parcourt 0,5 m (distance réelle). Calcule sa vitesse en m/s puis en km/h.',
+        steps: ['On cherche une vitesse : v = d ÷ t.', 'Entre deux photos : d = 0,5 m et t = 0,04 s.', 'v = 0,5 ÷ 0,04 = 12,5 m/s.', 'En km/h : 12,5 × 3,6 = 45 km/h.'],
+        rep: 'Le skateur va à 12,5 m/s, soit 45 km/h.',
+        piege: 'On divise par la durée entre deux photos (0,04 s), et pas par le nombre de photos.',
+      },
+    ],
   },
 
   /* ======================= LEÇON 2 ======================= */
@@ -316,6 +419,30 @@ const COURS = [
         ],
       },
       {
+        title: 'Le son : comment il voyage',
+        html: `
+          <p>Un son est une <b>vibration</b>. Pour avancer, il fait vibrer de proche en proche la matière qu’il traverse : l’air, l’eau, le métal… Cette matière s’appelle le <b>milieu de propagation</b>.</p>
+          <p><b>Sans matière, pas de son.</b> L’expérience classique : on place un réveil qui sonne sous une cloche en verre, puis on aspire l’air avec une pompe. Plus il y a de vide, moins on entend le réveil… alors qu’on le voit toujours vibrer. La lumière passe, le son non.</p>
+          <p>La vitesse du son dépend du milieu :</p>
+          <table class="tbl c">
+            <tr><th>Milieu</th><th>Air</th><th>Eau</th><th>Acier</th></tr>
+            <tr><td>Vitesse du son</td><td><b>340 m/s</b></td><td>environ 1 500 m/s</td><td>environ 5 000 m/s</td></tr>
+          </table>
+          <p>Le son va plus vite dans les solides que dans les liquides, et plus vite dans les liquides que dans les gaz : plus les particules sont serrées, mieux la vibration se transmet. <b>Seule la valeur dans l’air (340 m/s) est à connaître par cœur.</b></p>
+          <div class="ex"><b>Mesurer la vitesse du son en classe :</b> deux micros sont placés à 1,7 m l’un de l’autre. Un claquement de mains atteint le premier micro, puis le second 0,005 s plus tard (l’ordinateur mesure cet écart).<br>
+          v = d ÷ t = 1,7 ÷ 0,005 = <b>340 m/s</b>.</div>`,
+        retenir: 'Le son est une vibration qui a besoin de matière. Air : 340 m/s ; il va plus vite dans l’eau et encore plus dans les solides.',
+        quiz: [
+          { q: 'Dans quel milieu le son va-t-il le plus vite ?', choices: [
+            { t: 'Dans un rail en acier', ok: true },
+            { t: 'Dans l’air', msg: 'C’est dans l’air qu’il est le plus lent des trois ! Plus la matière est serrée (solide), plus le son va vite.' },
+            { t: 'Dans le vide', msg: 'Dans le vide, le son ne se propage pas du tout : il n’y a aucune matière à faire vibrer.' }] },
+          { q: 'On pompe l’air d’une cloche contenant un réveil qui sonne. On observe que :', choices: [
+            { t: 'On voit toujours le réveil, mais on ne l’entend presque plus', ok: true },
+            { t: 'On ne voit plus le réveil', msg: 'La lumière traverse le vide : on voit toujours le réveil. C’est le son qui ne passe plus.' }] },
+        ],
+      },
+      {
         title: 'L’écho : l’aller-retour',
         html: `
           <p>Quand tu cries face à une montagne, le son va jusqu’à la montagne, rebondit, puis revient vers toi. Le chronomètre mesure donc <b>l’aller ET le retour</b>.</p>
@@ -332,6 +459,32 @@ const COURS = [
           { q: 'Un bateau envoie un son vers le fond de la mer et reçoit l’écho. Pour la profondeur, il faut :', choices: [
             { t: 'Diviser la distance totale par 2', ok: true },
             { t: 'Garder la distance totale', msg: 'Le son est descendu puis remonté : la distance totale vaut deux fois la profondeur.' }] },
+        ],
+      },
+      {
+        title: 'Pour aller plus loin : la lumière et l’année-lumière',
+        html: `
+          <p>La lumière va à environ <b>300 000 km/s</b> dans le vide ou dans l’air. Pour se représenter ce nombre : le tour de la Terre mesure environ 40 000 km, donc en une seconde la lumière pourrait faire <b>7 tours et demi de la Terre</b> (300 000 ÷ 40 000 = 7,5). Dans l’eau ou dans le verre, elle va un peu moins vite.</p>
+          <div class="ex"><b>Du Soleil à la Terre :</b> le Soleil est à environ 150 millions de km.<br>
+          t = d ÷ v = 150 000 000 ÷ 300 000 = <b>500 s</b>, soit 8 min 20 s. La lumière du Soleil que tu vois est partie il y a plus de 8 minutes !</div>
+          <p>Dans l’espace, les distances sont si grandes que le kilomètre ne suffit plus. On utilise :</p>
+          <table class="tbl">
+            <tr><th>Unité</th><th>Définition</th><th>Valeur</th></tr>
+            <tr><td><b>Unité astronomique</b> (ua)</td><td>distance moyenne Terre–Soleil</td><td>≈ 150 000 000 km = 1,5 × 10⁸ km</td></tr>
+            <tr><td><b>Année-lumière</b> (a.l.)</td><td>distance parcourue par la lumière en <b>une année</b></td><td>≈ 9,46 × 10¹² km</td></tr>
+          </table>
+          <div class="ex"><b>Calculer une année-lumière :</b><br>
+          1 an = 365 × 24 × 3 600 = 31 536 000 s<br>
+          d = v × t = 300 000 × 31 536 000 ≈ <b>9,46 × 10¹² km</b> (près de 9 500 milliards de km).</div>
+          <div class="piege">⚠️ Malgré son nom, l’année-lumière est une <b>distance</b>, pas une durée ! Une étoile à 100 années-lumière : sa lumière met 100 ans à nous parvenir.</div>`,
+        retenir: 'c = 300 000 km/s. L’année-lumière est une distance : celle que parcourt la lumière en un an (≈ 9,46 × 10¹² km).',
+        quiz: [
+          { q: 'L’année-lumière est :', choices: [
+            { t: 'Une distance', ok: true },
+            { t: 'Une durée', msg: 'C’est le piège classique : c’est la distance parcourue par la lumière pendant un an. Elle s’exprime en km.' }] },
+          { q: 'Une étoile est à 50 années-lumière. Sa lumière met, pour nous parvenir :', choices: [
+            { t: '50 ans', ok: true },
+            { t: '50 secondes', msg: 'Par définition, une année-lumière = ce que la lumière parcourt en un an. 50 a.l. → 50 ans de voyage.' }] },
         ],
       },
     ],
@@ -381,6 +534,54 @@ const COURS = [
         steps: ['La distance est en mètres : on convertit la vitesse en m/s. 44,5 ÷ 3,6 ≈ 12,36 m/s.', 'On cherche une durée : t = d ÷ v.', 't = 250 ÷ 12,36 ≈ 20,2 s.'],
         rep: 'Il lui faudrait environ 20,2 secondes.',
         piege: 'Calculer 250 ÷ 44,5 mélange des mètres et des km/h : le résultat ne veut rien dire.',
+      },
+      {
+        title: 'Le TGV (pour aller plus loin)',
+        enonce: 'Un TGV relie deux villes distantes de 750 km à la vitesse moyenne de 300 km/h. 1) Pourquoi parle-t-on de vitesse « moyenne » ? 2) Calcule la durée du trajet en heures, puis en heures et minutes.',
+        steps: ['1) Le train ne roule pas tout le temps à 300 km/h : il accélère au départ, ralentit en gare ou dans les virages. 300 km/h est la vitesse calculée sur l’ensemble du trajet.', '2) On cherche une durée : t = d ÷ v.', 't = 750 ÷ 300 = 2,5 h.', '2,5 h = 2 h + 0,5 × 60 min = 2 h 30 min.'],
+        rep: 'La vitesse varie pendant le trajet, d’où « moyenne ». Le trajet dure 2,5 h, soit 2 h 30 min.',
+        piege: '2,5 h ne fait pas 2 h 50 min : 0,5 h = 30 min.',
+      },
+      {
+        title: 'Le 100 mètres (pour aller plus loin)',
+        enonce: 'Un sprinteur court le 100 m en 9,8 s. Calcule sa vitesse moyenne en m/s (au dixième), puis en km/h (au dixième).',
+        steps: ['On cherche une vitesse : v = d ÷ t, avec d = 100 m et t = 9,8 s.', 'v = 100 ÷ 9,8 ≈ 10,2 m/s.', 'En km/h : on multiplie la valeur non arrondie par 3,6 → 10,204… × 3,6 ≈ 36,7 km/h.'],
+        rep: 'Le sprinteur court à environ 10,2 m/s, soit 36,7 km/h.',
+        piege: 'Calculer avec 10,2 arrondi donne 36,72 : on garde la valeur complète dans la calculatrice jusqu’au bout.',
+      },
+      {
+        title: 'Le guépard (pour aller plus loin)',
+        enonce: 'Un guépard peut atteindre 110 km/h sur de courtes distances. 1) Convertis cette vitesse en m/s (à l’unité). 2) Quelle distance parcourt-il en 8 s à cette vitesse ?',
+        steps: ['1) km/h → m/s : on divise par 3,6. 110 ÷ 3,6 ≈ 30,56 m/s ≈ 31 m/s.', '2) On cherche une distance : d = v × t, avec v en m/s car t est en s.', 'd = 30,56 × 8 ≈ 244 m.'],
+        rep: 'Le guépard court à environ 31 m/s et parcourt environ 244 m en 8 s.',
+        piege: 'Faire 110 × 8 = 880 mélange des km/h et des secondes : le résultat ne veut rien dire.',
+      },
+      {
+        title: 'L’aviron (pour aller plus loin)',
+        enonce: 'Un bateau d’aviron avance à la vitesse moyenne de 5,2 m/s pendant une course de 2 min 30 s. Quelle distance parcourt-il ?',
+        steps: ['On cherche une distance : d = v × t.', 'La vitesse est en m/s : la durée doit être en secondes. 2 min 30 s = 2 × 60 + 30 = 150 s.', 'd = 5,2 × 150 = 780 m.'],
+        rep: 'Le bateau parcourt 780 m.',
+        piege: 'Écrire 2,30 min serait faux : 2 min 30 s = 2,5 min = 150 s.',
+      },
+      {
+        title: 'Le sonar (pour aller plus loin)',
+        enonce: 'Un bateau envoie un son vers le fond de la mer. Le son va à 1 500 m/s dans l’eau. L’écho revient 0,4 s après l’émission. Quelle est la profondeur ?',
+        steps: ['Le son descend jusqu’au fond puis remonte : c’est un écho, donc un aller-retour.', 'Distance totale : d = v × t = 1 500 × 0,4 = 600 m.', 'Profondeur = la moitié : 600 ÷ 2 = 300 m.'],
+        rep: 'La mer fait 300 m de profondeur à cet endroit.',
+        piege: 'Dans l’eau, on n’utilise pas 340 m/s : on prend la vitesse donnée par l’énoncé (1 500 m/s).',
+      },
+      {
+        title: 'La lumière du Soleil (pour aller plus loin)',
+        enonce: 'Le Soleil est à 150 000 000 km de la Terre. La lumière va à 300 000 km/s. Combien de temps met-elle pour nous arriver ? Donne le résultat en secondes, puis en minutes et secondes.',
+        steps: ['On cherche une durée : t = d ÷ v.', 'Distance en km et vitesse en km/s : on obtient directement des secondes.', 't = 150 000 000 ÷ 300 000 = 500 s.', '500 s = 8 × 60 + 20 → 8 min 20 s.'],
+        rep: 'La lumière du Soleil met 500 s, soit 8 min 20 s, pour nous parvenir.',
+      },
+      {
+        title: 'Combien vaut une année-lumière ? (pour aller plus loin)',
+        enonce: 'Calcule la distance parcourue par la lumière (300 000 km/s) en une année de 365 jours. Donne le résultat en écriture scientifique.',
+        steps: ['On cherche une distance : d = v × t, avec t en secondes (car v est en km/s).', '1 an = 365 × 24 × 3 600 = 31 536 000 s.', 'd = 300 000 × 31 536 000 = 9 460 800 000 000 km.', 'En écriture scientifique : ≈ 9,46 × 10¹² km.'],
+        rep: 'Une année-lumière vaut environ 9,46 × 10¹² km.',
+        piege: 'Oublier une des conversions (jours → heures → secondes) donne un résultat 24, 60 ou 3 600 fois trop petit.',
       },
     ],
   },

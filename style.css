@@ -170,3 +170,6 @@ td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 .rev summary::-webkit-details-marker { display: none; }
 .rev ol { margin: 4px 0 0; padding-left: 20px; }
 .rev s { color: var(--bad); }
+
+.tbl.c { font-size: .82em; table-layout: fixed; }
+.tbl.c td, .tbl.c th { overflow-wrap: anywhere; padding: 6px 3px; }

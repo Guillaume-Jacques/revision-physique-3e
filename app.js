@@ -425,7 +425,7 @@ function startRun(mode, skill, preset) {
     RUN.items = shuffle(['V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8']).map((s) => generate(s, s === 'V1' || s === 'V6' ? 2 : pick([2, 3])));
     RUN.total = 8; RUN.deadline = Date.now() + 20 * 60 * 1000;
   } else if (mode === 'bat') {
-    RUN.items = shuffle(V8_QCM.filter((b) => b.bat)).slice(0, 5).map((b) => qcm({ skill: 'V8', level: b.level, bat: true, q: b.q, choices: b.choices, hints: [FICHES.V8.points[0]], sol: [] }));
+    RUN.items = shuffle(V8_QCM.filter((b) => b.bat)).slice(0, 5).map((b) => qcmFrom('V8', b, { bat: true }));
     RUN.total = RUN.items.length;
   } else if (mode === 'focus') { RUN.total = 5; }
   else { RUN.total = 10; }
@@ -603,7 +603,7 @@ function finishItem(correct, errCode, raw, lastMsg) {
     const cheers = ['Bravo !', 'Exact !', 'Bien joué !', 'Parfait !', 'Yes !', 'Top !'];
     fbEl.innerHTML = `<div class="fb good pop"><b>${pick(cheers)}</b> +${gained} XP${clean ? ' • du premier coup 🎯' : ''}</div>`
       + (it.sol && it.sol.length && it.type === 'num' ? `<div class="fb sol small"><b>La méthode :</b><ol>${steps(it).map((s) => `<li>${s}</li>`).join('')}</ol></div>`
-        : it.type === 'qcm' && it.hints && it.hints[0] ? `<div class="fb sol small"><b>📌 À retenir :</b> ${it.hints[0]}</div>` : '');
+        : it.type === 'qcm' && (it.why || it.hints[0]) ? `<div class="fb sol small"><b>📌 Pourquoi :</b> ${it.why || it.hints[0]}</div>` : '');
   } else {
     if (it.type === 'qcm') { const good = $app.querySelectorAll('.choice')[it.choices.findIndex((x) => x.ok)]; if (good) good.classList.add('right'); }
     fbEl.innerHTML = (lastMsg ? `<div class="fb bad">${lastMsg}</div>` : '')

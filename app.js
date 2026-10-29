@@ -33,7 +33,7 @@ let saveTimer = null;
 function defaultState() {
   const mastery = {}; SKILLS.forEach((s) => (mastery[s.id] = 0));
   return { v: 1, pseudo: null, xp: 0, mastery, diagDone: false, diag: null, streak: { count: 0, last: null, jokers: 1, jokerWeek: null },
-    cards: [], boss: { best: null, history: [] }, sessions: 0, timeMs: 0, seenFiche: {}, large: false, batDone: 0 };
+    cards: [], boss: { best: null, history: [] }, sessions: 0, timeMs: 0, seenFiche: {}, large: false, batDone: 0, cours: {} };
 }
 function saveState() {
   LS.set('rv_state', S);
@@ -219,6 +219,7 @@ function screenHome() {
       <p class="muted">10 exercices choisis pour toi, environ 12 minutes.</p>
       <button class="btn" id="train">▶ C’est parti</button>
     </div>
+    ${coursHomeCard()}
     <div class="card">
       <div class="row between"><h3>👾 Boss : contrôle blanc</h3>${S.boss.best != null ? `<span class="pill">Record ${fr(S.boss.best, 1)}/20</span>` : ''}</div>
       ${unlocked ? '<p class="muted small">8 questions, 20 minutes, sans indice. Comme un vrai contrôle.</p><button class="btn ghost" id="boss">Affronter le boss</button>'
@@ -242,6 +243,7 @@ function screenHome() {
       <button class="link" id="out">Se déconnecter</button>
     </div>`);
   document.getElementById('train').onclick = () => startRun('train');
+  document.getElementById('cours').onclick = screenCours;
   document.getElementById('bat').onclick = () => startRun('bat');
   const b = document.getElementById('boss'); if (b) b.onclick = () => startRun('boss');
   document.getElementById('cards').onclick = screenCards;
@@ -261,8 +263,10 @@ function screenSkill(id) {
     <button class="link" id="back">← Retour</button>
     <div class="card stack">${ficheHtml(id)}</div>
     <div class="card"><div class="row between"><b>Ma maîtrise</b>${medalHtml(S.mastery[id])}</div><div class="bar" style="margin-top:8px"><i style="width:${S.mastery[id]}%"></i></div></div>
-    <button class="btn" id="go">S’entraîner sur « ${s.short} » (5 exercices)</button>`);
+    <div class="stack"><button class="btn" id="go">S’entraîner sur « ${s.short} » (5 exercices)</button>
+    ${lessonOf(id) ? `<button class="btn ghost" id="lc">📖 Lire le cours complet</button>` : ''}</div>`);
   document.getElementById('back').onclick = screenHome;
+  const lc = document.getElementById('lc'); if (lc) lc.onclick = () => screenLesson(lessonOf(id).id, 0);
   document.getElementById('go').onclick = () => startRun('focus', id);
 }
 
@@ -275,6 +279,140 @@ function screenCards() {
       ? `<div class="fcard pop"><h3>${s.icon} ${CARDS[s.id].title}</h3><div>${CARDS[s.id].body}</div></div>`
       : `<div class="fcard locked"><div>🔒<br>${s.short}</div></div>`).join('')}</div>`);
   document.getElementById('back').onclick = screenHome;
+}
+
+/* ---------- Cours ---------- */
+const lessonOf = (skill) => COURS.find((c) => c.skills.includes(skill));
+function coursProg(id) { S.cours = S.cours || {}; return (S.cours[id] = S.cours[id] || { seen: [], exos: [], done: false }); }
+function coursHomeCard() {
+  const done = COURS.filter((c) => coursProg(c.id).done).length;
+  const next = COURS.find((c) => !coursProg(c.id).done);
+  return `<div class="card">
+      <div class="row between"><h3>📚 Mes cours</h3><span class="pill">${done}/${COURS.length} lus</span></div>
+      <p class="muted small">Les leçons de ton cahier expliquées pas à pas, avec des mini-quiz et les exercices du prof corrigés.${next ? ` Prochaine : <b>${next.title}</b>.` : ''}</p>
+      <button class="btn ghost" id="cours">Ouvrir mes cours</button>
+    </div>`;
+}
+function screenCours() {
+  let lastChap = '';
+  render(`
+    <button class="link" id="back">← Retour</button>
+    <h1>Mes cours</h1>
+    <p class="muted small">Thème 1 — Mouvement et interactions, dans l’ordre de ton cahier.</p>
+    ${COURS.map((c) => {
+      const p = coursProg(c.id), n = c.sections.length, seen = p.seen.length;
+      const head = c.chap !== lastChap ? `<h3 style="margin:16px 4px 8px">${c.chap}</h3>` : ''; lastChap = c.chap;
+      return `${head}<button class="lesson" data-c="${c.id}">
+        <span class="lic">${c.icon}</span>
+        <span class="grow"><b>${c.title}</b><br><span class="small muted">${n} parties${c.exos.length ? ` • ${c.exos.length} exercices corrigés` : ''}</span>
+          <span class="bar" style="display:block;margin-top:6px"><i style="width:${Math.round(seen / n * 100)}%"></i></span></span>
+        <span>${p.done ? '✅' : '›'}</span>
+      </button>`;
+    }).join('')}`);
+  document.getElementById('back').onclick = screenHome;
+  $app.querySelectorAll('.lesson').forEach((b) => b.onclick = () => {
+    const c = COURS.find((x) => x.id === b.dataset.c), p = coursProg(c.id);
+    const first = c.sections.findIndex((_, i) => !p.seen.includes(i));
+    screenLesson(c.id, p.done || first < 0 ? 0 : first);
+  });
+}
+function screenLesson(id, i) {
+  const c = COURS.find((x) => x.id === id), sec = c.sections[i], n = c.sections.length, p = coursProg(id);
+  const isLast = i === n - 1;
+  render(`
+    <div class="row" style="margin-bottom:10px"><button class="link" id="back" aria-label="Fermer">✕</button>
+      <div class="progress"><i style="width:${Math.round((i + 1) / n * 100)}%"></i></div><span class="small muted">${i + 1}/${n}</span></div>
+    <span class="chip">${c.icon} ${c.title}</span>
+    ${i === 0 ? `<p class="small muted" style="margin-top:8px">📓 Dans ton cahier : ${c.cahier}</p>` : ''}
+    <div class="card lessonc pop" style="margin-top:10px">
+      <h2>${sec.title}</h2>
+      ${sec.html}
+      <div class="retenir"><b>📌 À retenir</b><br>${sec.retenir}</div>
+    </div>
+    ${(sec.quiz || []).map((q, k) => `
+      <div class="card"><span class="chip">✋ Vérifie que tu as compris</span>
+        <div class="question">${q.q}</div>
+        <div class="choices" data-q="${k}">${shuffle(q.choices.map((ch, j) => j)).map((j) => `<button class="choice" data-j="${j}">${q.choices[j].t}</button>`).join('')}</div>
+        <div class="qfb" id="qfb${k}"></div>
+      </div>`).join('')}
+    <div class="actions">${i > 0 ? '<button class="btn ghost" id="prev">← Avant</button>' : '<span></span>'}
+      <button class="btn" id="next">${isLast ? 'Terminer la leçon ✓' : 'Suite →'}</button></div>`);
+  if (!p.seen.includes(i)) { p.seen.push(i); saveState(); }
+  document.getElementById('back').onclick = screenCours;
+  const pv = document.getElementById('prev'); if (pv) pv.onclick = () => screenLesson(id, i - 1);
+  document.getElementById('next').onclick = () => isLast ? finishLesson(id) : screenLesson(id, i + 1);
+  $app.querySelectorAll('.choices[data-q]').forEach((box) => {
+    const q = sec.quiz[+box.dataset.q]; let tries = 0, over = false;
+    box.querySelectorAll('.choice').forEach((b) => b.onclick = () => {
+      if (over || b.classList.contains('wrong')) return;
+      const ch = q.choices[+b.dataset.j], out = document.getElementById('qfb' + box.dataset.q);
+      tries++;
+      if (ch.ok) {
+        over = true; b.classList.add('right');
+        out.innerHTML = `<div class="fb good pop"><b>${pick(['Bravo !', 'Exact !', 'Bien vu !'])}</b>${tries === 1 ? ' +3 XP' : ''}</div>`;
+        if (tries === 1) addXP(3);
+      } else {
+        b.classList.add('wrong');
+        out.innerHTML = `<div class="fb bad pop">${ch.msg || 'Pas tout à fait.'}</div>`;
+      }
+      if (ch.ok || tries === 1) logAttempt({ mode: 'cours', skill: c.skills[0], item_id: `${id}-s${i}-q${box.dataset.q}`, level: 1, correct: !!ch.ok, tries, hints: 0, error_code: ch.ok ? null : 'notion', answer: stripTags(ch.t).slice(0, 60), question: stripTags(q.q).slice(0, 400), ms: 0 });
+      saveState();
+    });
+  });
+}
+function finishLesson(id) {
+  const c = COURS.find((x) => x.id === id), p = coursProg(id);
+  const first = !p.done;
+  if (first) { p.done = true; addXP(20); }
+  saveState(); flush();
+  render(`
+    <div class="card hero center stack pop">
+      <div style="font-size:48px">📗</div>
+      <h2>Leçon terminée !</h2>
+      <p class="muted">${c.title}${first ? ' • +20 XP' : ''}</p>
+    </div>
+    <div class="card"><h3>📌 L’essentiel</h3><ul class="fiche">${c.sections.map((s) => `<li>${s.retenir}</li>`).join('')}</ul></div>
+    <div class="stack">
+      ${c.exos.length ? `<button class="btn" id="exos">✏️ Les exercices du cahier, corrigés (${c.exos.length})</button>` : ''}
+      ${c.skills.map((k) => { const s = SKILLS.find((x) => x.id === k); return `<button class="btn ${c.exos.length ? 'ghost' : ''}" data-k="${k}">${s.icon} S’entraîner : ${s.name}</button>`; }).join('')}
+      <button class="btn ghost" id="list">Retour à mes cours</button>
+    </div>`);
+  const ex = document.getElementById('exos'); if (ex) ex.onclick = () => screenExo(id, 0);
+  $app.querySelectorAll('[data-k]').forEach((b) => b.onclick = () => startRun('focus', b.dataset.k));
+  document.getElementById('list').onclick = screenCours;
+}
+function screenExo(id, k) {
+  const c = COURS.find((x) => x.id === id), e = c.exos[k], p = coursProg(id), n = c.exos.length;
+  let shown = 0;
+  render(`
+    <div class="row" style="margin-bottom:10px"><button class="link" id="back" aria-label="Fermer">✕</button>
+      <div class="progress"><i style="width:${Math.round((k + 1) / n * 100)}%"></i></div><span class="small muted">${k + 1}/${n}</span></div>
+    <span class="chip">✏️ Exercice du cahier corrigé</span>
+    <div class="card pop" style="margin-top:10px">
+      <h2>${e.title}</h2>
+      <div class="question">${e.enonce}</div>
+      <p class="small muted">Essaie d’abord sur ton cahier, puis révèle la correction étape par étape.</p>
+      <ol class="steps" id="steps"></ol>
+      <div id="end"></div>
+      <button class="btn ghost" id="reveal">Voir l’étape 1</button>
+    </div>
+    <div class="actions">${k > 0 ? '<button class="btn ghost" id="prev">← Avant</button>' : '<span></span>'}
+      <button class="btn" id="next">${k === n - 1 ? 'Terminer ✓' : 'Exercice suivant →'}</button></div>`);
+  const btn = document.getElementById('reveal');
+  btn.onclick = () => {
+    if (shown < e.steps.length) {
+      document.getElementById('steps').insertAdjacentHTML('beforeend', `<li class="pop">${e.steps[shown]}</li>`);
+      shown++;
+      btn.textContent = shown < e.steps.length ? `Voir l’étape ${shown + 1}` : 'Voir la réponse rédigée';
+    } else {
+      document.getElementById('end').innerHTML = `<div class="fb good pop">✍️ ${e.rep}</div>${e.piege ? `<div class="piege pop">⚠️ Piège : ${e.piege}</div>` : ''}`;
+      btn.remove();
+      if (!p.exos.includes(k)) { p.exos.push(k); addXP(5); saveState(); }
+    }
+  };
+  document.getElementById('back').onclick = screenCours;
+  const pv = document.getElementById('prev'); if (pv) pv.onclick = () => screenExo(id, k - 1);
+  document.getElementById('next').onclick = () => k === n - 1 ? finishLesson(id) : screenExo(id, k + 1);
 }
 
 /* ---------- Déroulé d'une série d'exercices ---------- */
@@ -578,6 +716,7 @@ async function screenParent() {
           <b>Maîtrise par compétence</b>${s.diagDone ? `<span class="small muted"> (évaluation de départ : ${s.diag.score}/${s.diag.total} le ${s.diag.date.split('-').reverse().join('/')})</span>` : '<span class="small muted"> (évaluation de départ pas encore faite)</span>'}
           <table style="margin-top:6px">${SKILLS.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="width:35%"><div class="bar"><i style="width:${s.mastery[k.id]}%"></i></div></td><td style="text-align:right">${s.mastery[k.id]}${s.diag && s.diag.skills ? `<span class="small muted"> (départ ${s.diag.skills[k.id]})</span>` : ''}</td></tr>`).join('')}</table>
         </div>
+        <div><b>Cours lus</b> : ${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `${c.title} ${p.done ? '✅' : (p.seen || []).length ? `(${(p.seen || []).length}/${c.sections.length})` : '—'}`; }).join(' • ')}</div>
         <div><b>Boss (contrôle blanc)</b> : ${s.boss.best != null ? `record ${fr(s.boss.best, 1)}/20 • ${s.boss.history.length} essai(s)` : 'pas encore tenté'}</div>
         <div>
           <b>Erreurs les plus fréquentes (30 j)</b>

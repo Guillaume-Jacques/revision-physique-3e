@@ -417,9 +417,10 @@ function screenExo(id, k) {
 
 /* ---------- Déroulé d'une série d'exercices ---------- */
 let RUN = null;
-function startRun(mode, skill) {
+function startRun(mode, skill, preset) {
   RUN = { mode, skill, idx: 0, results: [], xp0: S.xp, medals0: SKILLS.map((s) => medalOf(S.mastery[s.id])), started: Date.now() };
-  if (mode === 'diag') { RUN.items = buildDiagnostic(); RUN.total = RUN.items.length; }
+  if (preset) { RUN.items = preset; RUN.total = preset.length; }
+  else if (mode === 'diag') { RUN.items = buildDiagnostic(); RUN.total = RUN.items.length; }
   else if (mode === 'boss') {
     RUN.items = shuffle(['V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8']).map((s) => generate(s, s === 'V1' || s === 'V6' ? 2 : pick([2, 3])));
     RUN.total = 8; RUN.deadline = Date.now() + 20 * 60 * 1000;
@@ -468,7 +469,7 @@ function screenFicheFirst(id) {
 function headerHtml() {
   const it = RUN.cur.item, sk = SKILLS.find((s) => s.id === it.skill);
   const pct = Math.round(RUN.idx / RUN.total * 100);
-  const label = { diag: 'Évaluation', train: 'Séance', boss: 'Boss', bat: 'Enquête', focus: 'Entraînement' }[RUN.mode];
+  const label = { diag: 'Évaluation', train: 'Séance', boss: 'Boss', bat: 'Enquête', focus: 'Entraînement', redo: 'Rattrapage' }[RUN.mode];
   return `<div class="row" style="margin-bottom:10px"><button class="quitbtn" id="quit">✕ Quitter</button><div class="progress"><i style="width:${pct}%"></i></div>
       <span class="small muted">${RUN.idx + 1}/${RUN.total}</span>${RUN.mode === 'boss' ? '<span class="pill timer" id="timer"></span>' : ''}</div>
     <div class="row between"><span class="chip">${sk.icon} ${sk.name}</span><span class="small muted">${label} <span class="dots">${[1, 2, 3].map((l) => `<i class="${l <= it.level ? 'on' : ''}"></i>`).join('')}</span></span></div>`;
@@ -585,7 +586,7 @@ function finishItem(correct, errCode, raw, lastMsg) {
   S.timeMs += ms;
   const clean = correct && c.tries === 0 && c.hints === 0;
   const code = correct ? (c.firstErr || null) : (errCode || c.firstErr || 'autre');
-  RUN.results.push({ skill: it.skill, level: it.level, correct, clean, code, item: it, answer: raw });
+  RUN.results.push({ skill: it.skill, level: it.level, correct, clean, code, item: it, answer: raw, tries: c.answers.concat(c.answers[c.answers.length - 1] === raw ? [] : [raw]), hintsUsed: c.hints });
   logAttempt({ mode: RUN.mode, skill: it.skill, item_id: it.id, level: it.level, correct, tries: c.tries + 1, hints: c.hints, error_code: code, answer: String(raw).slice(0, 60), question: stripTags(it.q).slice(0, 400), ms });
 
   if (RUN.mode === 'diag') { addXP(5); saveState(); RUN.idx++; return nextItem(); }
@@ -601,16 +602,61 @@ function finishItem(correct, errCode, raw, lastMsg) {
   if (correct) {
     const cheers = ['Bravo !', 'Exact !', 'Bien joué !', 'Parfait !', 'Yes !', 'Top !'];
     fbEl.innerHTML = `<div class="fb good pop"><b>${pick(cheers)}</b> +${gained} XP${clean ? ' • du premier coup 🎯' : ''}</div>`
-      + (it.sol && it.sol.length && it.type === 'num' ? `<div class="fb sol small"><b>La méthode :</b><ol>${it.sol.map((s) => `<li>${s}</li>`).join('')}</ol></div>` : '');
+      + (it.sol && it.sol.length && it.type === 'num' ? `<div class="fb sol small"><b>La méthode :</b><ol>${steps(it).map((s) => `<li>${s}</li>`).join('')}</ol></div>`
+        : it.type === 'qcm' && it.hints && it.hints[0] ? `<div class="fb sol small"><b>📌 À retenir :</b> ${it.hints[0]}</div>` : '');
   } else {
     if (it.type === 'qcm') { const good = $app.querySelectorAll('.choice')[it.choices.findIndex((x) => x.ok)]; if (good) good.classList.add('right'); }
     fbEl.innerHTML = (lastMsg ? `<div class="fb bad">${lastMsg}</div>` : '')
-      + `<div class="fb sol"><b>${it.type === 'num' ? `La réponse : ${fr(it.ans)} ${esc(it.unit)}` : 'Retiens bien la bonne réponse en vert.'}</b>${it.sol && it.sol.length ? `<ol>${it.sol.map((s) => `<li>${s}</li>`).join('')}</ol>` : ''}</div>
+      + `<div class="fb sol"><b>${it.type === 'num' ? `La réponse : ${fr(it.ans)} ${esc(it.unit)}` : 'Retiens bien la bonne réponse en vert.'}</b>${it.type === 'num' && it.sol && it.sol.length ? `<ol>${steps(it).map((s) => `<li>${s}</li>`).join('')}</ol>` : it.hints && it.hints[0] ? `<p style="margin:6px 0 0">📌 ${it.hints[0]}</p>` : ''}</div>
        <div class="small muted">Pas grave : cet exercice reviendra bientôt sous une autre forme. +2 XP pour l’effort.</div>`;
   }
   document.getElementById('btns').innerHTML = `<div class="actions one"><button class="btn ${correct ? 'good' : ''}" id="next">Continuer</button></div>`;
   const nb = document.getElementById('next'); nb.focus({ preventScroll: true });
   nb.onclick = () => { RUN.idx++; nextItem(); };
+}
+
+function steps(it) {
+  const st = (it.sol || []).slice();
+  if (it.type === 'num' && st.length < 2 && it.hints && it.hints[0] && !st.some((x) => stripTags(x) === stripTags(it.hints[0]))) st.unshift(it.hints[0]);
+  return st;
+}
+function reviewCard(r, i) {
+  const it = r.item, sk = SKILLS.find((x) => x.id === r.skill);
+  const status = r.clean ? ['st-ok', 'Juste du premier coup'] : r.correct ? ['st-mid', 'Juste après ' + (r.tries.length > 1 ? 'une erreur' : 'un indice')] : ['st-low', 'À revoir'];
+  const good = it.type === 'num' ? `${fr(it.ans)} ${esc(it.unit)}` : it.choices.find((c) => c.ok).t;
+  const wrong = (r.correct ? r.tries.slice(0, -1) : r.tries).filter((a, k, arr) => a && a !== '—' && arr.indexOf(a) === k);
+  let why = '';
+  if (it.type === 'qcm') {
+    const msgs = wrong.map((a) => (it.choices.find((c) => stripTags(c.t) === a) || {}).msg).filter(Boolean);
+    why = msgs.map((m) => `<p class="small" style="margin:6px 0 0">❓ ${m}</p>`).join('') + (it.hints && it.hints[0] ? `<p class="small" style="margin:6px 0 0">📌 ${it.hints[0]}</p>` : '');
+  } else if (steps(it).length) {
+    why = `<b class="small">Le calcul, étape par étape :</b><ol class="small">${steps(it).map((x) => `<li>${x}</li>`).join('')}</ol>`;
+    if (r.code && r.code !== 'nsp' && ERR_LABELS[r.code] && !r.clean) why = `<p class="small" style="margin:0 0 6px">🔎 L’erreur repérée : <b>${esc(ERR_LABELS[r.code])}</b></p>` + why;
+  }
+  return `<details class="card rev" ${r.clean ? '' : 'open'}>
+    <summary><span class="chip">${sk.icon} ${i + 1}. ${sk.short}</span> <span class="status ${status[0]}">${status[1]}</span></summary>
+    <div class="question small" style="font-size:.95em">${it.q}</div>
+    ${wrong.length ? `<p class="small">Tu avais répondu : ${wrong.map((a) => `<s>${esc(a)}</s>`).join(', ')}</p>` : ''}
+    <div class="fb sol small"><b>Bonne réponse : ${good}</b>${why ? `<div style="margin-top:6px">${why}</div>` : ''}</div>
+  </details>`;
+}
+function screenReview(run) {
+  const res = run.results, nOk = res.filter((r) => r.clean).length;
+  render(`
+    <button class="quitbtn" id="back">← Retour</button>
+    <h1 style="margin-top:12px">Revoir ma séance</h1>
+    <p class="muted small">${nOk} exercice${nOk > 1 ? 's' : ''} juste${nOk > 1 ? 's' : ''} du premier coup sur ${res.length}. Les exercices à revoir sont ouverts ; touche les autres pour les déplier.</p>
+    ${res.map(reviewCard).join('')}
+    <div class="stack">
+      ${res.some((r) => !r.clean) ? `<button class="btn" id="redo">🔁 Refaire les exercices ratés, avec d’autres nombres</button>` : ''}
+      <button class="btn ghost" id="home">Retour à l’accueil</button></div>`);
+  document.getElementById('back').onclick = screenHome;
+  document.getElementById('home').onclick = screenHome;
+  const rd = document.getElementById('redo'); if (rd) rd.onclick = () => startRedo(run);
+}
+function startRedo(run) {
+  const missed = run.results.filter((r) => !r.clean);
+  startRun('redo', null, missed.map((r) => generate(r.skill, r.level)));
 }
 
 function finishRun() {
@@ -636,7 +682,13 @@ function finishRun() {
       ${streakMsg ? `<p>${streakMsg}</p>` : ''}
     </div>
     ${newMedals.length ? `<div class="card"><h3>Nouvelles médailles</h3>${newMedals.map((s) => `<div class="row between" style="margin:6px 0"><span>${s.icon} ${s.name}</span>${medalHtml(S.mastery[s.id])}</div>`).join('')}</div>` : ''}
-    <div class="stack"><button class="btn" id="again">Encore une séance</button><button class="btn ghost" id="home">Retour à l’accueil</button></div>`);
+    <div class="stack">
+      <button class="btn" id="review">📝 Revoir ma séance, exercice par exercice</button>
+      ${res.some((r) => !r.clean) ? `<button class="btn ghost" id="redo">🔁 Refaire les exercices ratés (${res.filter((r) => !r.clean).length}), avec d’autres nombres</button>` : ''}
+      <button class="btn ghost" id="again">Encore une séance</button><button class="btn ghost" id="home">Retour à l’accueil</button></div>`);
+  const done = RUN;
+  document.getElementById('review').onclick = () => screenReview(done);
+  const rd = document.getElementById('redo'); if (rd) rd.onclick = () => startRedo(done);
   document.getElementById('again').onclick = () => startRun(RUN.mode === 'bat' ? 'bat' : RUN.mode === 'focus' ? 'focus' : 'train', RUN.skill);
   document.getElementById('home').onclick = screenHome;
 }

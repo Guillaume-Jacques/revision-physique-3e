@@ -152,6 +152,26 @@ const COURS = [
         ],
       },
       {
+        title: 'Direction, sens et valeur',
+        html: `
+          <p>Donner une vitesse, ce n’est pas seulement donner un nombre. Pour la décrire complètement, il faut <b>trois informations</b> :</p>
+          <table class="tbl">
+            <tr><th>Caractéristique</th><th>Question à se poser</th><th>Exemple</th></tr>
+            <tr><td><b>Direction</b></td><td>Sur quelle ligne le mobile se déplace-t-il à cet instant ?</td><td>horizontale</td></tr>
+            <tr><td><b>Sens</b></td><td>Vers où, sur cette ligne ?</td><td>vers la droite</td></tr>
+            <tr><td><b>Valeur</b></td><td>Combien, avec quelle unité ?</td><td>12 m/s</td></tr>
+          </table>
+          <p>On la dessine avec une <b>flèche</b> (le « vecteur vitesse ») : elle suit la direction, pointe dans le sens du mouvement, et elle est d’autant plus longue que la valeur est grande.</p>
+          <div class="ex"><b>Exemple :</b> une voiture qui tourne sur un rond-point à vitesse constante. La <b>valeur</b> ne change pas (le compteur reste à 30 km/h), mais la <b>direction</b> change sans arrêt. Sa vitesse n’est donc pas la même d’un instant à l’autre !</div>`,
+        retenir: 'Une vitesse = une direction + un sens + une valeur (avec son unité).',
+        quiz: [
+          { q: 'Une voiture fait le tour d’un rond-point en restant à 30 km/h. Qu’est-ce qui change ?', choices: [
+            { t: 'La direction de sa vitesse', ok: true },
+            { t: 'Rien du tout', msg: 'La valeur reste 30 km/h, mais la voiture tourne : la direction de sa vitesse change à chaque instant.' },
+            { t: 'La valeur de sa vitesse', msg: 'Le compteur reste bloqué à 30 km/h : la valeur ne change pas. C’est la direction qui change.' }] },
+        ],
+      },
+      {
         title: 'La chronophotographie',
         html: `
           <p>C’est une technique : on prend une photo à <b>intervalles réguliers</b> (par exemple toutes les 0,1 s) et on superpose toutes les photos sur une seule image. On voit alors d’un coup toutes les positions du mobile.</p>

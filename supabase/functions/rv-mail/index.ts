@@ -27,6 +27,7 @@ const ERR: Record<string, string> = {
   signeIon: 'confond perte et gain d’électrons (ions)', noyauIon: 'change le noyau dans un ion',
   ajuste: 'écrit une équation non ajustée', coefIndice: 'confond coefficient et petit chiffre d’une formule',
   masseConso: 'oublie la conservation de la masse', reacProd: 'confond réactifs et produits', testIon: 'se trompe dans un test d’ion ou de gaz',
+  phSens: 'lit le pH à l’envers (pH bas = très acide)', dilution: 'se trompe sur l’effet d’une dilution sur le pH',
 };
 
 async function rpc(fn: string, args: Record<string, unknown>) {

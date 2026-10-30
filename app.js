@@ -1765,7 +1765,10 @@ function accessButtons(st) {
   const name = childName(st);
   return `<button class="btn" data-share="${st.id}" data-name="${esc(name)}">📲 Envoyer le lien à ${esc(name)}</button>
     <button class="btn ghost" data-code="${st.id}">🔢 Afficher un code (appli installée ou ordinateur)</button>
-    <div class="codebox" id="code-${st.id}" hidden></div>`;
+    <div class="codebox" id="code-${st.id}" hidden></div>
+    ${PREVIEW ? '' : ACCTS.some((a) => a.role === 'student' && (a.name === name || a.name === st.label))
+      ? `<p class="small muted" style="margin:0">✓ ${esc(name)} est déjà sur cet appareil : « 👥 Changer de profil » en bas de cet écran.</p>`
+      : `<button class="btn ghost" data-here="${st.id}" data-name="${esc(name)}">➕ Ajouter ${esc(name)} sur cet appareil</button>`}`;
 }
 function activityChart(st, sj) {
   const days = st.days || [], list = lastDays(14);
@@ -2010,7 +2013,7 @@ function tabReglages(st) {
     <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}
   ${helpCard()}
   <div class="center stack" style="gap:6px">
-    ${ACCTS.length > 1 ? '<button class="link" id="psw">👥 Changer de profil</button>' : ''}
+    ${ACCTS.length > 1 ? '<button class="btn ghost" id="psw">👥 Changer de profil</button>' : ''}
     <button class="link" id="out">Me déconnecter de cet appareil</button>
   </div>
   ${legal()}`;
@@ -2055,6 +2058,19 @@ function bindParent(st) {
     const box = $('code-' + b.dataset.code);
     box.hidden = false;
     box.innerHTML = `<p class="small" style="margin:0">Dans l’appli installée sur son écran d’accueil (ou sur l’ordinateur, à l’adresse <b>${esc(location.host)}</b>), choisir « Je suis élève » puis taper :</p><div class="bigcode">${r.code}</div><p class="small muted" style="margin:0">Valable ${r.minutes} minutes, une seule fois.</p>`;
+  });
+  $app.querySelectorAll('[data-here]').forEach((b) => b.onclick = async () => {
+    const nm = b.dataset.name;
+    if (!await ask({ title: `Ajouter ${nm} sur cet appareil ?`, text: `À chaque ouverture, l’appli demandera « Qui se connecte ? » : ton espace parent ou celui de ${nm}. Pour passer de l’un à l’autre : « 👥 Changer de profil ».`, ok: 'Ajouter' })) return;
+    const c = await call('rv_child_code', { p_child: b.dataset.here }); if (!c) return;
+    try {
+      const r = await rpc('rv_join_code', { p_code: c.code, p_label: deviceLabel() });
+      if (!r.token) return toast('Impossible pour le moment, réessaie.');
+      ACCTS = ACCTS.filter((a) => a.token !== r.token && !(a.role === 'student' && a.name === r.name));
+      ACCTS.push({ token: r.token, role: 'student', name: r.name, pin: !!r.pin }); saveAccts();
+      toast(`${nm} est ajouté${(DASH.students || []).find((x) => x.id === b.dataset.here)?.gender === 'f' ? 'e' : ''} sur cet appareil ✓`);
+      reload();
+    } catch (e) { toast('Pas de connexion internet.'); }
   });
   $app.querySelectorAll('[data-dev]').forEach((b) => b.onclick = async () => {
     if (!await ask({ title: `Retirer « ${b.dataset.what} » ?`, text: 'Cet appareil ne pourra plus ouvrir l’appli. Il faudra renvoyer le lien pour l’utiliser à nouveau.', ok: 'Retirer', danger: true })) return;

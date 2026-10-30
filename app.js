@@ -1774,7 +1774,8 @@ function accessButtons(st) {
     <button class="btn ghost" data-code="${st.id}">🔢 Afficher un code (appli installée ou ordinateur)</button>
     <div class="codebox" id="code-${st.id}" hidden></div>
     ${PREVIEW ? '' : ACCTS.some((a) => a.role === 'student' && (a.name === name || a.name === st.label))
-      ? `<p class="small muted" style="margin:0">✓ ${esc(name)} est déjà sur cet appareil : « 👥 Changer de profil » en bas de cet écran.</p>`
+      ? `<p class="small muted" style="margin:0">✓ ${esc(name)} est sur cet appareil : « 👥 Changer de profil » en bas de cet écran.</p>
+        <button class="btn ghost" data-nothere="${esc(st.label || name)}" data-name="${esc(name)}">➖ Retirer ${esc(name)} de cet appareil</button>`
       : `<button class="btn ghost" data-here="${st.id}" data-name="${esc(name)}">➕ Ajouter ${esc(name)} sur cet appareil</button>`}`;
 }
 function activityChart(st, sj) {
@@ -2078,6 +2079,14 @@ function bindParent(st) {
       toast(`${nm} est ajouté${(DASH.students || []).find((x) => x.id === b.dataset.here)?.gender === 'f' ? 'e' : ''} sur cet appareil ✓`);
       reload();
     } catch (e) { toast('Pas de connexion internet.'); }
+  });
+  $app.querySelectorAll('[data-nothere]').forEach((b) => b.onclick = async () => {
+    const nm = b.dataset.name, lab = b.dataset.nothere;
+    if (!await ask({ title: `Retirer ${nm} de cet appareil ?`, text: `Son profil disparaît seulement de ce téléphone. Ses progrès sont conservés et son propre téléphone continue de marcher. Tu pourras la rajouter d’un toucher.`, ok: 'Retirer' })) return;
+    ACCTS.filter((a) => a.role === 'student' && (a.name === lab || a.name === nm)).forEach((a) => { const k = a.token.slice(0, 8); ['rv_state_', 'rv_queue_', 'rv_act_', 'rv_plan_'].forEach((p) => LS.del(p + k)); });
+    ACCTS = ACCTS.filter((a) => !(a.role === 'student' && (a.name === lab || a.name === nm))); saveAccts();
+    toast(`${nm} est retiré${(DASH.students || []).find((x) => (x.label === lab))?.gender === 'f' ? 'e' : ''} de cet appareil ✓`);
+    reload();
   });
   $app.querySelectorAll('[data-dev]').forEach((b) => b.onclick = async () => {
     if (!await ask({ title: `Retirer « ${b.dataset.what} » ?`, text: 'Cet appareil ne pourra plus ouvrir l’appli. Il faudra renvoyer le lien pour l’utiliser à nouveau.', ok: 'Retirer', danger: true })) return;

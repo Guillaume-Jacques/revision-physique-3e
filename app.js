@@ -121,6 +121,7 @@ function examSubj(e) {
   const s = [...new Set(ks.map(subjOf))];
   return s.length === 1 ? s[0] : 'mix';
 }
+const subjSwitch = (sj) => `<div class="subjs sticky" role="tablist" aria-label="Matière">${Object.entries(SUBJ).map(([k, v]) => `<button role="tab" class="subj ${sj === k ? 'on' : ''}" data-sj="${k}" aria-selected="${sj === k}">${v.icon} ${v.name}</button>`).join('')}</div>`;
 const subjLabel = (k) => k === 'mix' ? 'physique-chimie' : SUBJ[k].name.toLowerCase();
 
 /* ---------- Saisie des réponses : nombre simple, nombre négatif (±) ou écriture scientifique (… × 10ⁿ) ---------- */
@@ -724,14 +725,14 @@ function screenHome() {
       </div>
       <button class="gear" id="set" aria-label="Réglages">⚙️</button>
     </div>
+    ${subjSwitch(sj)}
     ${installCard()}
     ${M.html}
-    <div class="subjs" role="tablist">${Object.entries(SUBJ).map(([k, v]) => `<button role="tab" class="subj ${sj === k ? 'on' : ''}" data-sj="${k}" ${sj === k ? 'aria-selected="true"' : ''}>${v.icon} ${v.name}</button>`).join('')}</div>
     <h3 style="margin:14px 4px 10px">Autres activités en ${SUBJ[sj].name.toLowerCase()}</h3>
     <div class="acts subj-${sj}">
       <button class="act" id="redac"><span class="ic">✍️</span><b>Rédiger</b><span class="small muted">Comme sur ta copie</span></button>
       ${sj === 'chimie' ? '<button class="act" id="calc"><span class="ic">🧮</span><b>Ma calculatrice</b><span class="small muted">' + (calcOf(S.calc) ? esc(calcOf(S.calc).name) : 'Choisis ton modèle') + '</span></button>' : ''}
-      <button class="act" id="cours"><span class="ic">📚</span><b>Mes cours</b><span class="small muted">${coursDone}/${COURS.length} lus</span></button>
+      <button class="act" id="cours"><span class="ic">📚</span><b>Mes cours</b><span class="small muted">${COURS.filter((c) => coursSubj(c) === sj && coursProg(c.id).done).length}/${COURS.filter((c) => coursSubj(c) === sj).length} lus en ${SUBJ[sj].name.toLowerCase()}</span></button>
       <button class="act ${unlocked ? '' : 'off'}" id="boss"><span class="ic">👾</span><b>Contrôle blanc</b><span class="small muted">${unlocked ? (S.boss.best != null ? `Record ${fr(S.boss.best, 1)}/20` : '8 questions, 20 min') : `🔒 ${nb}/${BOSS_NEED} bronzes`}</span></button>
       ${sj === 'physique' ? '<button class="act" id="bat"><span class="ic">🕵️</span><b>Bats ta note</b><span class="small muted">Chasse à l’erreur</span></button>' : ''}
     </div>
@@ -809,15 +810,15 @@ function coursHomeCard() {
 }
 function screenCours() {
   let lastChap = '', lastSj = '';
-  const order = COURS.slice().sort((a, b) => (coursSubj(a) === (S.subj || 'physique') ? 0 : 1) - (coursSubj(b) === (S.subj || 'physique') ? 0 : 1));
+  const sjc = S.subj || 'physique', order = COURS.filter((c) => coursSubj(c) === sjc);
   render(`
     <button class="link" id="back">← Retour</button>
     <h1>Mes cours</h1>
+    ${subjSwitch(sjc)}
     <p class="muted small">Dans l’ordre de ton cahier, avec quelques leçons d’avance pour être ${gw(GEN(), 'prête', 'prêt', 'prêt(e)')} quand le prof les commencera.</p>
     ${order.map((c) => {
       const p = coursProg(c.id), n = c.sections.length, seen = p.seen.length, sj = coursSubj(c);
-      const sh = sj !== lastSj ? `<h2 style="margin:22px 4px 0">${SUBJ[sj].icon} ${SUBJ[sj].name}</h2>` : ''; lastSj = sj;
-      const head = sh + (c.chap !== lastChap ? `<h3 style="margin:12px 4px 8px">${c.chap}</h3>` : ''); lastChap = c.chap;
+      const head = (c.chap !== lastChap ? `<h3 style="margin:12px 4px 8px">${c.chap}</h3>` : ''); lastChap = c.chap;
       return `${head}<button class="lesson" data-c="${c.id}">
         <span class="lic">${c.icon}</span>
         <span class="grow"><b>${c.title}</b>${c.ahead ? ' <span class="pill tiny">🚀 en avance</span>' : ''}<br><span class="small muted">${n} parties${c.exos.length ? ` • ${c.exos.length} exercices corrigés` : ''}</span>
@@ -825,6 +826,7 @@ function screenCours() {
         <span>${p.done ? '✅' : '›'}</span>
       </button>`;
     }).join('')}`);
+  $app.querySelectorAll('[data-sj]').forEach((b) => b.onclick = () => { S.subj = b.dataset.sj; saveState(); screenCours(); });
   document.getElementById('back').onclick = screenHome;
   $app.querySelectorAll('.lesson').forEach((b) => b.onclick = () => {
     const c = COURS.find((x) => x.id === b.dataset.c), p = coursProg(c.id);
@@ -1637,7 +1639,7 @@ function ask(o) {
     if (document.activeElement) document.activeElement.blur();
     const hasIn = o.input != null;
     document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="ask" role="dialog" aria-modal="true"><div class="card sheet stack pop">
-      <h3>${o.title}</h3>${o.text ? `<p class="small" style="margin:0">${o.text}</p>` : ''}
+      <h3>${o.title}</h3>${o.text ? `<p class="small" style="margin:0">${o.text}</p>` : ''}${o.html || ''}
       ${hasIn ? `<input class="field" id="askin" placeholder="${esc(o.input)}" autocomplete="off" ${o.type ? `type="${o.type}"` : ''}>` : ''}
       ${o.copy ? `<textarea class="field" id="askcp" readonly rows="4">${esc(o.copy)}</textarea>` : ''}
       <button class="btn ${o.danger ? 'bad' : ''}" id="askok">${o.ok || 'Confirmer'}</button>
@@ -1707,6 +1709,8 @@ function drawParent() {
   window.scrollTo(0, PV.keepY ? y : 0); PV.keepY = false;
   $app.querySelectorAll('[data-kid]').forEach((b) => b.onclick = () => { PV.child = b.dataset.kid; savePV(); drawParent(); });
   $app.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { PV.tab = b.dataset.tab; savePV(); drawParent(); });
+  $app.querySelectorAll('[data-rev]').forEach((b) => b.onclick = () => reviewSheet(st));
+  $app.querySelectorAll('[data-psj]').forEach((b) => b.onclick = () => { PV.sj = b.dataset.psj || null; PV.keepY = true; savePV(); drawParent(); });
   bindParent(st);
 }
 /* Rechargement automatique au retour sur l'appli (remplace « Actualiser ») */
@@ -1732,50 +1736,124 @@ function accessButtons(st) {
     <button class="btn ghost" data-code="${st.id}">🔢 Afficher un code (appli installée ou ordinateur)</button>
     <div class="codebox" id="code-${st.id}" hidden></div>`;
 }
-function activityChart(st) {
+function activityChart(st, sj) {
   const days = st.days || [], list = lastDays(14);
-  const vals = list.map((d) => { const f = days.find((x) => x.day === d); return f ? f.n : 0; });
-  const max = Math.max(1, ...vals), L = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-  return `<div class="days2">${list.map((d, i) => { const n = vals[i], last = i === list.length - 1;
-    return `<div class="${last ? 'today' : ''}" title="${d.split('-').reverse().join('/')} : ${n} exercice${n > 1 ? 's' : ''}"><i class="${n ? '' : 'zero'}" style="height:${n ? Math.max(8, Math.round(n / max * 100)) : 4}%"></i><span>${last ? 'auj.' : L[new Date(d + 'T12:00').getDay()]}</span></div>`; }).join('')}</div>`;
+  const row = (d) => { const f = days.find((x) => x.day === d) || {}; const c = f.n_chim || 0, n = f.n || 0; return { p: sj === 'chimie' ? 0 : n - c, c: sj === 'physique' ? 0 : c }; };
+  const vals = list.map(row), max = Math.max(1, ...vals.map((v) => v.p + v.c)), L = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+  return `<div class="days2 stk">${list.map((d, i) => { const { p, c } = vals[i], n = p + c, last = i === list.length - 1, h = (x) => Math.round(x / max * 100);
+    return `<div class="${last ? 'today' : ''}" title="${d.split('-').reverse().join('/')} : ${n} exercice${n > 1 ? 's' : ''}${c && p ? ` (${p} en physique, ${c} en chimie)` : ''}">${n ? `${c ? `<i class="ch" style="height:${Math.max(4, h(c))}%"></i>` : ''}${p ? `<i class="ph${c ? '' : ' top'}" style="height:${Math.max(4, h(p))}%"></i>` : ''}` : '<i class="zero" style="height:4%"></i>'}<span>${last ? 'auj.' : L[new Date(d + 'T12:00').getDay()]}</span></div>`; }).join('')}</div>
+    ${sj ? '' : '<p class="small muted legend" style="margin:6px 0 0"><span class="lg ph"></span> physique <span class="lg ch"></span> chimie</p>'}`;
+}
+/* Chiffres d'une matière pour le parent */
+function subjStats(s, st, sj) {
+  const t = st.totals || {}, ch = sj === 'chimie', part = (all, c) => ch ? (c || 0) : Math.max(0, (all || 0) - (c || 0));
+  const ks = SKILLS.filter((k) => (k.subj || 'physique') === sj), open = ks.filter((k) => isOpen(s, k));
+  const started = open.filter((k) => s.mastery[k.id] > 0 || (s.lastPrac || {})[k.id]);
+  const cs = COURS.filter((c) => coursSubj(c) === sj), C = ch ? s.ctrlK : s.ctrl;
+  return { n7: part(t.n7, t.n7_chim), ok7: part(t.ok7, t.ok7_chim), n: part(t.n, t.n_chim), ok: part(t.ok, t.ok_chim), ms: part(t.ms, t.ms_chim),
+    last: ch ? t.last_chim : (t.last_phys !== undefined ? t.last_phys : t.last), open: open.length, total: ks.length, started: started.length,
+    medals: open.filter((k) => medalOf(s.mastery[k.id]) !== 'none').length, cd: cs.filter((c) => ((s.cours || {})[c.id] || {}).done).length, ct: cs.length,
+    ctrl: C && C.hist && C.hist.length ? C.hist[C.hist.length - 1] : null };
+}
+function subjCard(s, st) {
+  const P = subjStats(s, st, 'physique'), K = subjStats(s, st, 'chimie');
+  const pc = (o) => o.n7 ? `${Math.round(o.ok7 / o.n7 * 100)} %` : '—';
+  const day = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : 'jamais';
+  const rows = [
+    ['Exercices (7 j)', (o) => `<b>${o.n7}</b>`],
+    ['Réussite (7 j)', (o) => `<b>${pc(o)}</b>`],
+    ['Depuis le début', (o) => `${o.n} exercice${o.n > 1 ? 's' : ''} • ${Math.round(o.ms / 60000)} min`],
+    ['Compétences travaillées', (o) => `${o.started}/${o.open}${o.open < o.total ? ` <span class="small muted">(+${o.total - o.open} à venir)</span>` : ''}`],
+    ['Médailles', (o) => `${o.medals}`],
+    ['Cours lus', (o) => `${o.cd}/${o.ct}`],
+    ['Contrôle type', (o) => o.ctrl ? `${fr(o.ctrl.note, 1)}/20 <span class="small muted">(aide ${o.ctrl.lv}/3)</span>` : '—'],
+    ['Dernière séance', (o) => day(o.last)],
+  ];
+  return `<div class="card stack"><h3>Physique et chimie</h3>
+    <table class="cmp"><tr><th></th><th>${SUBJ.physique.icon} Physique</th><th>${SUBJ.chimie.icon} Chimie</th></tr>
+    ${rows.map(([l, f]) => `<tr><td class="small muted">${l}</td><td>${f(P)}</td><td>${f(K)}</td></tr>`).join('')}</table>
+    <p class="small muted" style="margin:0">Touche « Physique » ou « Chimie » en haut pour voir le détail d’une seule matière.</p></div>`;
 }
 function tabSuivi(st) {
   const s = childState(st), t = st.totals || {}, name = childName(st), g = st.gender;
   const fmtDate = (d) => d ? new Date(d).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais';
   const headTitle = `<div class="ptitle"><h1>${esc(name)}</h1><span class="small muted">Dernière activité : ${fmtDate(t.last)}</span></div>`;
   if (!(st.devices || []).length && !t.n) return headTitle + pendingCard(st);
-  const open = SKILLS.filter((k) => isOpen(s, k)), closed = SKILLS.length - open.length;
+  const psj = PV.sj && SUBJ[PV.sj] ? PV.sj : null, inS = (k) => !psj || (k.subj || 'physique') === psj;
+  const open = SKILLS.filter((k) => isOpen(s, k) && inS(k)), closed = SKILLS.filter(inS).length - open.length;
   const started = open.filter((k) => s.mastery[k.id] > 0 || ((s.lastPrac || {})[k.id])), notYet = open.filter((k) => !started.includes(k));
-  const due = (s.review || []).filter((r) => r.due <= todayStr()).length;
-  const errs = (st.errors || []).filter((e) => e.code !== 'nsp');
+  const due = (s.review || []).filter((r) => r.due <= todayStr() && (!psj || subjOf(r.skill) === psj)).length;
+  const ech = st.errors_chim || [];
+  const errs = (psj === 'chimie' ? ech : psj === 'physique' ? (st.errors || []).map((e) => { const c = ech.find((x) => x.code === e.code); return { code: e.code, n: e.n - (c ? c.n : 0) }; }).filter((e) => e.n > 0).sort((a, b) => b.n - a.n) : (st.errors || [])).filter((e) => e.code !== 'nsp');
+  const ss = psj ? subjStats(s, st, psj) : null;
+  const seg = `<div class="seg3" role="tablist">${[['', 'Les deux'], ['physique', SUBJ.physique.icon + ' Physique'], ['chimie', SUBJ.chimie.icon + ' Chimie']].map(([k, l]) => `<button role="tab" data-psj="${k}" class="${(psj || '') === k ? 'on' : ''}" aria-selected="${(psj || '') === k}">${l}</button>`).join('')}</div>`;
   return `${headTitle}
-    ${weekCard(s, st)}
+    ${seg}
+    ${psj ? '' : weekCard(s, st) + subjCard(s, st)}
+    ${ss ? `<div class="card stack"><h3>${SUBJ[psj].icon} ${SUBJ[psj].name}</h3><div class="kpis two">
+      <div class="kpi"><span class="small muted">Exercices (7 j)</span><b>${ss.n7}</b><span class="small muted">${ss.n7 ? Math.round(ss.ok7 / ss.n7 * 100) + ' % de réussite' : 'pas encore cette semaine'}</span></div>
+      <div class="kpi"><span class="small muted">Contrôle type</span><b>${ss.ctrl ? fr(ss.ctrl.note, 1) + '/20' : '—'}</b><span class="small muted">${ss.ctrl ? `aide ${ss.ctrl.lv}/3` : 'pas encore tenté'}</span></div></div>
+      <p class="small muted" style="margin:0">Depuis le début : ${ss.n} exercice${ss.n > 1 ? 's' : ''}, ${Math.round(ss.ms / 60000)} min • ${ss.medals} médaille${ss.medals > 1 ? 's' : ''} • ${ss.cd}/${ss.ct} cours lus</p></div>` : ''}
     <div class="card stack">
       <div class="kpis two">
-        <div class="kpi"><span class="small muted">À revoir aujourd’hui</span><b>${due}</b><span class="small muted">exercice${due > 1 ? 's' : ''} raté${due > 1 ? 's' : ''} qui ${due > 1 ? 'reviennent' : 'revient'}</span></div>
+        <button class="kpi kbtn" data-rev="${st.id}"><span class="small muted">À revoir aujourd’hui</span><b>${due}</b><span class="small muted">exercice${due > 1 ? 's' : ''} raté${due > 1 ? 's' : ''} qui ${due > 1 ? 'reviennent' : 'revient'}</span><span class="small kmore">Voir la liste ›</span></button>
         <div class="kpi"><span class="small muted">Contrôle blanc</span><b>${s.boss.best != null ? fr(s.boss.best, 1) + '/20' : '—'}</b><span class="small muted">${s.boss.history.length ? `meilleure note, ${s.boss.history.length} essai${s.boss.history.length > 1 ? 's' : ''}` : 'pas encore tenté'}</span></div>
       </div>
-      <div><b class="small">Exercices par jour, 14 derniers jours</b>${activityChart(st)}</div>
+      <div><b class="small">Exercices par jour${psj ? ' en ' + SUBJ[psj].name.toLowerCase() : ''}, 14 derniers jours</b>${activityChart(st, psj)}</div>
       <button class="btn ghost" data-pv="${st.id}">👀 Voir son appli, comme ${esc(name)} la voit</button>
     </div>
     <div class="card stack">
       <h3>Maîtrise par compétence</h3>
-      ${started.length ? Object.keys(SUBJ).map((sj) => { const ks = started.filter((k) => (k.subj || 'physique') === sj); return ks.length ? `<b class="small">${SUBJ[sj].icon} ${SUBJ[sj].name}</b><table class="mt">${ks.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalOf(s.mastery[k.id]) === 'none' ? '<span class="medal m-none">en cours</span>' : medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>` : ''; }).join('') : '<p class="small muted" style="margin:0">Aucune compétence travaillée pour l’instant.</p>'}
+      ${started.length ? Object.keys(SUBJ).filter((sj) => !psj || sj === psj).map((sj) => { const ks = started.filter((k) => (k.subj || 'physique') === sj); return ks.length ? `<b class="small">${SUBJ[sj].icon} ${SUBJ[sj].name}</b><table class="mt">${ks.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalOf(s.mastery[k.id]) === 'none' ? '<span class="medal m-none">en cours</span>' : medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>` : ''; }).join('') : '<p class="small muted" style="margin:0">Aucune compétence travaillée pour l’instant.</p>'}
       ${notYet.length ? `<details><summary class="small"><b>Pas encore commencées (${notYet.length})</b></summary><p class="small muted" style="margin:6px 0 0">${notYet.map((k) => `${k.icon} ${k.name}`).join(' • ')}</p></details>` : ''}
-      <p class="small muted" style="margin:0">▲ ▼ : évolution sur 7 jours. Une petite baisse après quelques jours sans pratique est normale.${closed ? ` ${closed} compétence${closed > 1 ? 's' : ''} s’ouvri${closed > 1 ? 'ront' : 'ra'} avec les leçons d’avance.` : ''}</p>
+      <p class="small muted" style="margin:0">▲ ▼ : évolution sur 7 jours. Une petite baisse après quelques jours sans pratique est normale.${closed ? ` ${closed} compétence${closed > 1 ? 's' : ''} s’ouvri${closed > 1 ? 'ront' : 'ra'} à la fin de leur leçon.` : ''}</p>
     </div>
     <div class="card stack">
       <h3>Cours lus</h3>
-      <table>${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title} <span class="small muted">(${SUBJ[coursSubj(c)].name.toLowerCase()}${c.ahead ? ', en avance' : ''})</span></td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
+      <table>${COURS.filter((c) => !psj || coursSubj(c) === psj).map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title} <span class="small muted">(${SUBJ[coursSubj(c)].name.toLowerCase()}${c.ahead ? ', en avance' : ''})</span></td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
     </div>
     <details class="card stack"><summary><b>Plus de détails</b> <span class="small muted">erreurs, derniers exercices, indicateurs</span></summary>
-      <h3 style="margin-top:10px">Erreurs les plus fréquentes (30 j)</h3>
+      <h3 style="margin-top:10px">Erreurs les plus fréquentes${psj ? ' en ' + SUBJ[psj].name.toLowerCase() : ''} (30 j)</h3>
       ${errs.length ? `<table>${errs.slice(0, 5).map((e) => `<tr><td>${esc(ERR_LABELS[e.code] || e.code)}</td><td style="text-align:right"><b>${e.n}</b></td></tr>`).join('')}</table>` : '<p class="small muted">Rien à signaler pour l’instant.</p>'}
       <h3>Indicateurs</h3>
       <table>${KPI_HELP.map(([l, f, h]) => `<tr><td><b>${typeof l === 'function' ? l(g) : l}</b> : ${f(s, t)}<br><span class="small muted">${h}</span></td></tr>`).join('')}</table>
-      <h3>Derniers exercices</h3>
-      <table>${(st.recent || []).map((r) => `<tr><td>${r.correct ? '✅' : '❌'}</td><td><span class="small muted">${fmtDate(r.ts)} • ${esc(RUN_LABEL[r.mode] || r.mode)}</span><br>${esc((r.question || '').slice(0, 140))}<br><span class="small">Réponse : <b>${esc(r.answer)}</b>${r.conf ? ` • ${esc({ sure: gw(g, 'sûre', 'sûr', 'sûr(e)'), hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne sait pas' }[r.conf] || r.conf)}` : ''}${r.error_code ? ` • ${esc(ERR_LABELS[r.error_code] || r.error_code)}` : ''}${r.hints ? ` • ${r.hints} indice(s)` : ''}</span></td></tr>`).join('') || '<tr><td class="small muted">Aucun exercice pour l’instant.</td></tr>'}</table>
+      <h3>Derniers exercices${psj ? ' en ' + SUBJ[psj].name.toLowerCase() : ''}</h3>
+      ${recentHtml(st, g, psj)}
     </details>`;
+}
+
+/* Derniers exercices : un bloc par jour, les erreurs d'abord, les réussites repliées */
+function recentHtml(st, g, psj) {
+  const rec = (st.recent || []).filter((r) => !psj || subjOf(r.skill) === psj);
+  if (!rec.length) return '<p class="small muted" style="margin:0">Aucun exercice pour l’instant.</p>';
+  const dayOf = (ts) => new Date(ts).toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' });
+  const days = [...new Set(rec.map((r) => dayOf(r.ts)))];
+  const confTxt = (c) => ({ sure: gw(g, 'sûre', 'sûr', 'sûr(e)'), hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne savait pas' }[c] || c);
+  const sk = (id) => SKILLS.find((x) => x.id === id) || { icon: '•', name: id };
+  const bad = (r) => `<li class="rx"><span class="small muted">${new Date(r.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} • ${sk(r.skill).icon} ${esc(sk(r.skill).name)}</span><br>${esc((r.question || '').slice(0, 160))}<br>
+    <span class="small">Sa réponse : <b>${esc(r.answer)}</b>${r.error_code && ERR_LABELS[r.error_code] ? ` • ${esc(ERR_LABELS[r.error_code])}` : ''}${r.conf ? ` • ${esc(confTxt(r.conf))}` : ''}</span></li>`;
+  const good = (r) => `<li class="small">${sk(r.skill).icon} ${esc((r.question || '').slice(0, 90))}${(r.question || '').length > 90 ? '…' : ''}${r.conf === 'hasard' ? ' <span class="muted">(au hasard)</span>' : ''}</li>`;
+  return days.map((d, i) => {
+    const list = rec.filter((r) => dayOf(r.ts) === d), ko = list.filter((r) => !r.correct), ok = list.filter((r) => r.correct);
+    const lbl = d === todayStr() ? 'Aujourd’hui' : d === addDays(todayStr(), -1) ? 'Hier' : new Date(d + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+    return `<details class="dayg" ${i === 0 ? 'open' : ''}><summary><b>${lbl}</b> <span class="small muted">• ${list.length} exercice${list.length > 1 ? 's' : ''} • ${ok.length} juste${ok.length > 1 ? 's' : ''}${ko.length ? ` • ${ko.length} erreur${ko.length > 1 ? 's' : ''}` : ''}</span></summary>
+      ${ko.length ? `<ul class="rxl">${ko.map(bad).join('')}</ul>` : '<p class="small" style="margin:6px 0">✅ Aucune erreur ce jour-là.</p>'}
+      ${ok.length ? `<details class="okl"><summary class="small">Voir ${ok.length > 1 ? `les ${ok.length} exercices réussis` : 'l’exercice réussi'}</summary><ul>${ok.map(good).join('')}</ul></details>` : ''}
+    </details>`;
+  }).join('') + `<p class="small muted" style="margin:6px 0 0">Les ${rec.length} derniers exercices${psj ? ' de ' + SUBJ[psj].name.toLowerCase() : ''}. Les erreurs sont en premier ; les exercices réussis sont repliés.</p>`;
+}
+/* File « À revoir » expliquée au parent */
+function reviewSheet(st) {
+  const s = childState(st), name = childName(st), t = todayStr();
+  const list = (s.review || []).slice().sort((a, b) => a.due < b.due ? -1 : 1), sk = (id) => SKILLS.find((x) => x.id === id) || { icon: '•', name: id };
+  const when = (d) => d <= t ? '<b>aujourd’hui</b>' : d === addDays(t, 1) ? 'demain' : 'le ' + new Date(d + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const html = list.length ? `<ul class="rvl">${list.map((r) => `<li><b>${sk(r.skill).icon} ${esc(sk(r.skill).name)}</b>${r.redac ? ' <span class="small muted">(à rédiger)</span>' : ''}<br>
+      <span class="small">${esc(ERR_LABELS[r.code] || 'Erreur')}${r.src === 'copie' ? ` • 📝 relevée sur une copie${r.label ? ` (${esc(r.label)})` : ''}` : ''}</span><br>
+      <span class="small muted">Revient ${when(r.due)} • passage ${Math.min(r.step + 1, 4)} sur 4</span></li>`).join('')}</ul>`
+    : '<p class="small" style="margin:0">La file est vide : aucune erreur en attente.</p>';
+  ask({ title: `La file « À revoir » de ${esc(name)}`, cancel: false, ok: 'Fermer',
+    text: `Chaque exercice raté revient sous une autre forme (d’autres nombres) : le lendemain, puis 3, 7 et 21 jours après. Réussi à chaque passage, il sort de la liste ; raté, il repart du début. ${esc(name)} les retrouve au début de sa séance du jour.`,
+    html });
 }
 
 /* ----- Onglet Contrôles et copies ----- */

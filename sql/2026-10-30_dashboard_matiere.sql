@@ -1,0 +1,3 @@
+-- 30/10/2026 : tableau de bord parent par matière (chimie = compétences K*)
+-- totals : n_chim, ok_chim, ms_chim, last_chim, last_phys, n7_chim, ok7_chim ; errors_chim ; days.n_chim ; recent porté à 60 exercices
+-- (définition complète appliquée par les migration « dashboard_par_matiere » puis remplacement de « limit 25 » par « limit 60 » ; voir pg_get_functiondef('rv_dashboard'))

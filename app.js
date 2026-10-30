@@ -404,7 +404,7 @@ function screenParentLogin(st) {
       <div class="answer"><input id="pmail" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="prenom@exemple.fr" value="${esc(st.email || '')}"></div>
       <div id="pinv" ${st.invite ? '' : 'hidden'} class="stack">
         <div class="tip">Bienvenue ! C’est ta première connexion : coche la case ci-dessous pour créer ton espace parent.</div>
-        <label class="ck consent"><input type="checkbox" id="pok"> <span>Je suis le parent ou le responsable légal de l’enfant. J’accepte que ses réponses et ses progrès soient enregistrés pour le suivi de ses révisions, comme expliqué dans la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</span></label>
+        <label class="ck consent"><input type="checkbox" id="pok"> <span>Je certifie être <b>majeur(e)</b> et <b>parent ou responsable légal</b> de l’enfant. J’accepte que ses réponses et ses progrès soient enregistrés pour le suivi de ses révisions, comme expliqué dans la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</span></label>
       </div>
       <p class="small" id="pmsg" style="color:var(--bad);font-weight:700;margin:0;min-height:1.2em">${st.err || ''}</p>
       <button class="btn" id="pgo">Recevoir mon code</button>

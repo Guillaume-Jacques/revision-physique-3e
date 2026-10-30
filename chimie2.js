@@ -408,3 +408,81 @@ window.addEventListener('DOMContentLoaded', () => {
     testIon: 'relire ensemble le tableau des tests : soude pour les ions métalliques, nitrate d’argent pour Cl⁻.',
   });
 });
+
+/* ---------- « Bats ta note » en chimie : chasse à l'erreur sur des copies ---------- */
+const CHIM_BAT = [
+  { skill: 'K2', level: 2, q: `🕵️ Chasse à l’erreur : « ${nuc(23, 11, 'Na')} contient 11 protons et 23 neutrons ». Où est l’erreur ?`, choices: [
+    { t: '23, ce sont les nucléons : neutrons = 23 − 11 = 12', ok: true },
+    { t: 'Il y a 23 protons', msg: 'Z = 11 (en bas) : 11 protons, c’est juste.', code: 'zA' },
+    { t: 'Il n’y a pas d’erreur', msg: 'A compte protons ET neutrons : il faut retirer Z.', code: 'neutA' }],
+    why: 'A = nucléons. Neutrons = A − Z = 23 − 11 = 12.' },
+  { skill: 'K2', level: 2, q: `🕵️ Chasse à l’erreur : « ${nuc(35, 17, 'Cl')} : 35 protons, 35 électrons, 18 neutrons ». Où est l’erreur ?`, choices: [
+    { t: 'A et Z sont inversés : 17 protons et 17 électrons', ok: true },
+    { t: 'Le nombre de neutrons est faux', msg: '35 − 17 = 18 : les neutrons sont justes. Regarde les protons.', code: 'zA' },
+    { t: 'Un atome n’a pas autant d’électrons que de protons', msg: 'Si : un atome est neutre. Le problème est ailleurs.', code: 'notion' }],
+    why: 'Z (en bas) = 17 protons = 17 électrons ; A (en haut) = 35 nucléons.' },
+  { skill: 'K3', level: 2, q: '🕵️ Chasse à l’erreur : « Taille de l’atome ÷ taille du noyau = 10⁻¹⁰ ÷ 10⁻¹⁵ = 10⁻²⁵ ». Où est l’erreur ?', choices: [
+    { t: 'Pour diviser on soustrait : −10 − (−15) = +5, donc 10⁵', ok: true },
+    { t: 'Il fallait multiplier', msg: 'Un rapport est bien une division. C’est le calcul de l’exposant qui est faux.', code: 'expSigne' },
+    { t: 'Il n’y a pas d’erreur', msg: 'Un atome plus grand que son noyau donne un rapport > 1, pas 10⁻²⁵.', code: 'expSigne' }],
+    why: '10⁻¹⁰ ÷ 10⁻¹⁵ = 10⁻¹⁰⁺¹⁵ = 10⁵ = 100 000.' },
+  { skill: 'K3', level: 3, q: '🕵️ Chasse à l’erreur : « 0,00042 = 42 × 10⁻⁵ en écriture scientifique ». Où est l’erreur ?', choices: [
+    { t: 'Il faut un seul chiffre avant la virgule : 4,2 × 10⁻⁴', ok: true },
+    { t: 'L’exposant devrait être positif', msg: 'Le nombre est plus petit que 1 : l’exposant est bien négatif.', code: 'expSigne' },
+    { t: 'Il n’y a pas d’erreur', msg: '42 × 10⁻⁵ est juste en valeur, mais ce n’est pas l’écriture scientifique.', code: 'sciNon' }],
+    why: 'Écriture scientifique : un seul chiffre non nul avant la virgule. 0,00042 = 4,2 × 10⁻⁴.' },
+  { skill: 'K4', level: 2, q: `🕵️ Chasse à l’erreur : masse de ${nuc(16, 8, 'O')} : « m = 8 × 1,67 × 10⁻²⁷ + 8 × 9,11 × 10⁻³¹ ». Où est l’erreur ?`, choices: [
+    { t: 'Il faut compter les 16 nucléons, pas seulement les 8 protons', ok: true },
+    { t: 'Il faut 16 électrons', msg: 'L’atome a 8 électrons (autant que de protons). Ce sont les neutrons qui manquent.', code: 'neutA' },
+    { t: 'Il n’y a pas d’erreur', msg: 'Les 8 neutrons ont aussi une masse : il manque 8 × 1,67 × 10⁻²⁷.', code: 'neutA' }],
+    why: 'm = A × mₚ + Z × mₑ = 16 × 1,67 × 10⁻²⁷ + 8 × 9,11 × 10⁻³¹ ≈ 2,67 × 10⁻²⁶ kg.' },
+  { skill: 'K4', level: 3, q: '🕵️ Chasse à l’erreur : « La masse de l’atome de carbone vaut 2,00 × 10⁻²⁶ g ». Où est l’erreur ?', choices: [
+    { t: 'L’unité : les masses données sont en kg', ok: true },
+    { t: 'L’exposant devrait être positif', msg: 'Un atome est minuscule : l’exposant est bien négatif.', code: 'expSigne' },
+    { t: 'Il n’y a pas d’erreur', msg: 'Le calcul est juste, mais avec mₚ en kg le résultat est en kg.', code: 'unite' }],
+    why: 'mₚ et mₑ sont en kg : m = 2,00 × 10⁻²⁶ kg.' },
+  { skill: 'K5', level: 3, q: '🕵️ Chasse à l’erreur : à la calculatrice, « 16 × 1,67E−27 ÷ 8 × 9,11E−31 » donne un nombre minuscule. Pourquoi ?', choices: [
+    { t: 'Il manque les parenthèses autour du bas de la division', ok: true },
+    { t: 'La calculatrice est en panne', msg: 'Elle calcule de gauche à droite : sans parenthèses, elle multiplie par 9,11E−31 au lieu de diviser.', code: 'saisie' },
+    { t: 'Il fallait additionner', msg: 'Un rapport est une division : c’est la saisie qui pose problème.', code: 'saisie' }],
+    why: 'Il faut taper (16 × 1,67E−27) ÷ (8 × 9,11E−31) ≈ 3 666.' },
+  { skill: 'K6', level: 2, q: '🕵️ Chasse à l’erreur : « CO₂ est formé de 2 molécules : C et O ». Où est l’erreur ?', choices: [
+    { t: 'CO₂ est UNE molécule de 3 atomes : 1 C et 2 O', ok: true },
+    { t: 'Il y a 2 carbones', msg: 'Le petit 2 compte l’atome juste avant : l’oxygène.', code: 'indice' },
+    { t: 'Il n’y a pas d’erreur', msg: 'C et O sont des atomes, pas des molécules.', code: 'indice' }],
+    why: 'CO₂ : une molécule, 1 atome de carbone et 2 atomes d’oxygène.' },
+  { skill: 'K7', level: 2, q: '🕵️ Chasse à l’erreur : « Cu²⁺ : l’atome de cuivre a gagné 2 électrons ». Où est l’erreur ?', choices: [
+    { t: 'Charge + : il a perdu 2 électrons', ok: true },
+    { t: 'Il a gagné 2 protons', msg: 'Le noyau ne change pas dans un ion.', code: 'noyauIon' },
+    { t: 'Il n’y a pas d’erreur', msg: 'Gagner des électrons (−) donnerait une charge −.', code: 'signeIon' }],
+    why: 'Moins d’électrons que de protons → charge + : Cu²⁺ a perdu 2 électrons.' },
+  { skill: 'K7', level: 3, q: '🕵️ Chasse à l’erreur : « Cl⁻ (Z = 17) possède 16 électrons ». Où est l’erreur ?', choices: [
+    { t: 'Charge − : il a gagné un électron, donc 18', ok: true },
+    { t: 'Il possède 17 électrons', msg: '17, c’est l’atome neutre. L’ion Cl⁻ en a un de plus.', code: 'signeIon' },
+    { t: 'Il n’y a pas d’erreur', msg: 'Une charge − veut dire un électron de plus, pas de moins.', code: 'signeIon' }],
+    why: 'Électrons de l’ion = 17 + 1 = 18.' },
+  { skill: 'K8', level: 2, q: '🕵️ Chasse à l’erreur : on a coché « CH₄ + O₂ → CO₂ + H₂O » pour la combustion du méthane. Où est l’erreur ?', choices: [
+    { t: 'L’équation n’est pas ajustée : il faut 2 O₂ et 2 H₂O', ok: true },
+    { t: 'Les produits sont faux', msg: 'CO₂ et H₂O sont bien les produits. Compte les atomes de chaque côté.', code: 'ajuste' },
+    { t: 'Il n’y a pas d’erreur', msg: '4 H à gauche, 2 H à droite : ça ne va pas.', code: 'ajuste' }],
+    why: 'CH₄ + 2 O₂ → CO₂ + 2 H₂O : 1 C, 4 H, 4 O de chaque côté.' },
+  { skill: 'K8', level: 2, q: '🕵️ Chasse à l’erreur : « Lors d’une transformation chimique, il y a conservation des molécules ». Où est l’erreur ?', choices: [
+    { t: 'Ce sont les atomes qui se conservent, pas les molécules', ok: true },
+    { t: 'Rien ne se conserve', msg: 'Les atomes et la masse se conservent.', code: 'masseConso' },
+    { t: 'Il n’y a pas d’erreur', msg: 'Les molécules de départ disparaissent et d’autres se forment.', code: 'notion' }],
+    why: 'Les molécules changent ; les atomes se réarrangent et se conservent.' },
+  { skill: 'K8', level: 3, q: '🕵️ Chasse à l’erreur : « 16 g de méthane + 64 g de dioxygène donnent 36 g d’eau et 116 g de CO₂ ». Où est l’erreur ?', choices: [
+    { t: 'La masse doit se conserver : 16 + 64 − 36 = 44 g de CO₂', ok: true },
+    { t: 'Il ne se forme pas d’eau', msg: 'Si : CO₂ et eau. C’est la masse de CO₂ qui est fausse.', code: 'reacProd' },
+    { t: 'Il n’y a pas d’erreur', msg: '80 g de réactifs ne peuvent pas donner 152 g de produits.', code: 'masseConso' }],
+    why: 'm(réactifs) = 80 g = m(produits) : 36 g d’eau + 44 g de CO₂.' },
+  { skill: 'K9', level: 2, q: '🕵️ Chasse à l’erreur : « Pour chercher les ions chlorure Cl⁻, j’ajoute de la soude ». Où est l’erreur ?', choices: [
+    { t: 'Cl⁻ se teste au nitrate d’argent', ok: true },
+    { t: 'Il faut de l’eau de chaux', msg: 'L’eau de chaux sert au CO₂.', code: 'testIon' },
+    { t: 'Il n’y a pas d’erreur', msg: 'La soude repère des ions métalliques (Cu²⁺, Fe²⁺…), pas Cl⁻.', code: 'testIon' }],
+    why: 'Nitrate d’argent + Cl⁻ → précipité blanc qui noircit à la lumière.' },
+];
+function chimBatItems() {
+  const ok = (b) => typeof skillActive !== 'function' || skillActive(b.skill);
+  return shuffle(CHIM_BAT.filter(ok)).slice(0, 5).map((b) => qcmFrom(b.skill, b, { bat: true }));
+}

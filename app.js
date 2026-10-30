@@ -730,7 +730,7 @@ function screenHome() {
       ${sj === 'chimie' ? '<button class="act" id="calc"><span class="ic">🧮</span><b>Ma calculatrice</b><span class="small muted">' + (calcOf(S.calc) ? esc(calcOf(S.calc).name) : 'Choisis ton modèle') + '</span></button>' : ''}
       <button class="act" id="cours"><span class="ic">📚</span><b>Mes cours</b><span class="small muted">${COURS.filter((c) => coursSubj(c) === sj && coursProg(c.id).done).length}/${COURS.filter((c) => coursSubj(c) === sj).length} lus en ${SUBJ[sj].name.toLowerCase()}</span></button>
       <button class="act ${unlocked ? '' : 'off'}" id="boss"><span class="ic">👾</span><b>Contrôle blanc</b><span class="small muted">${unlocked ? (S.boss.best != null ? `Record ${fr(S.boss.best, 1)}/20` : '8 questions, 20 min') : `🔒 ${nb}/${BOSS_NEED} bronzes`}</span></button>
-      ${sj === 'physique' ? '<button class="act" id="bat"><span class="ic">🕵️</span><b>Bats ta note</b><span class="small muted">Chasse à l’erreur</span></button>' : ''}
+      <button class="act" id="bat"><span class="ic">🕵️</span><b>Bats ta note</b><span class="small muted">Chasse à l’erreur</span></button>
     </div>
     <h3 style="margin:18px 4px 6px">Mes compétences en ${SUBJ[sj].name.toLowerCase()}</h3>
     <p class="small muted" style="margin:0 4px 10px">Une médaille se gagne en réussissant sur plusieurs jours : bronze en 2 jours, argent en 3, or en 4.</p>
@@ -1032,7 +1032,8 @@ function startRun(mode, skill, preset, isMission) {
     RUN.items = ids.map((s) => generate(s, s === 'V1' || s === 'V6' || s === 'E2' || s === 'P2' ? 2 : pick([2, 3])));
     RUN.total = 8; RUN.deadline = Date.now() + 20 * 60 * 1000;
   } else if (mode === 'bat') {
-    RUN.items = shuffle(V8_QCM.filter((b) => b.bat)).slice(0, 5).map((b) => qcmFrom('V8', b, { bat: true }));
+    RUN.items = (S.subj === 'chimie' && typeof chimBatItems === 'function') ? chimBatItems()
+      : shuffle(V8_QCM.filter((b) => b.bat)).slice(0, 5).map((b) => qcmFrom('V8', b, { bat: true }));
     RUN.total = RUN.items.length;
   } else if (mode === 'review') {
     RUN.items = dueReviews().slice(0, 8).map(itemFromReview); RUN.total = RUN.items.length;

@@ -342,9 +342,10 @@ table.cmp td { font-size: .95em; }
 .kbtn { display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--line); }
 
 /* Même ordre des activités en physique et en chimie (30/10) :
-   Contrôle type (toute la largeur), puis Mes cours | Rédiger, Contrôle blanc | activité propre à la matière */
+   Contrôle type (toute la largeur), puis Mes cours | Rédiger, Contrôle blanc | Bats ta note, puis Ma calculatrice en chimie */
 .acts #ctrlAct, .acts #ctrlKAct { order: 1; grid-column: 1 / -1; }
 .acts #cours { order: 2; }
 .acts #redac { order: 3; }
 .acts #boss { order: 4; }
-.acts #bat, .acts #calc { order: 5; }
+.acts #bat { order: 5; }
+.acts #calc { order: 6; grid-column: 1 / -1; }

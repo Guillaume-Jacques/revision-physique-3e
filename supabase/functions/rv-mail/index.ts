@@ -4,7 +4,7 @@ const SB = Deno.env.get('SUPABASE_URL')!;
 const SK = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const BREVO = Deno.env.get('BREVO_API_KEY') || '';
 const APP_URL = 'https://physique.guillaumejacques.fr/';
-const APP_NAME = 'Révisions physique';
+const APP_NAME = 'Révisions physique-chimie';
 const SENDER = { name: APP_NAME, email: 'contact@guillaumejacques.fr' };
 
 const CORS = {
@@ -22,6 +22,9 @@ const ERR: Record<string, string> = {
   question: 'ne répond pas à la question posée', notion: 'notion de cours pas encore sûre', p10: 'erreur de virgule ou de puissance de 10',
   conv60: 'se trompe avec ×60 / ÷60', arrondi: 'arrondit trop tôt', demi: 'oublie le ½ de Ec = ½ m v²', poidsmasse: 'confond poids et masse',
   unite: 'se trompe d’unité', copie: 'erreur relevée sur une copie', autre: 'autre erreur',
+  neutA: 'prend A pour le nombre de neutrons', zA: 'inverse A et Z', expSigne: 'se trompe de signe dans l’exposant',
+  saisie: 'puissance de dix fausse (calculatrice)', sciNon: 'n’écrit pas en écriture scientifique', indice: 'lit mal une formule chimique',
+  signeIon: 'confond perte et gain d’électrons (ions)', noyauIon: 'change le noyau dans un ion',
 };
 
 async function rpc(fn: string, args: Record<string, unknown>) {
@@ -73,6 +76,7 @@ async function digest(kind: 'evening' | 'weekly') {
       return `<p style="margin:0 0 6px"><b>${esc(k.child)}</b></p><ul style="margin:0 0 14px;padding-left:20px">
         ${kind === 'weekly' ? `<li>${k.days} jour${k.days > 1 ? 's' : ''} de révision sur 7 ${k.days >= 4 ? '✅' : '(objectif : 4)'}</li>` : ''}
         <li>${k.n} exercice${k.n > 1 ? 's' : ''}, ${pct(k.ok, k.n)} % de réussite, environ ${mins(k.ms)} min</li>
+        ${k.n ? `<li>⚡ Physique : ${k.n - (k.n_chim || 0)} exercice${k.n - (k.n_chim || 0) > 1 ? 's' : ''}${k.n - (k.n_chim || 0) ? `, ${pct(k.ok - (k.ok_chim || 0), k.n - (k.n_chim || 0))} %` : ''} • ⚗️ Chimie : ${k.n_chim || 0} exercice${(k.n_chim || 0) > 1 ? 's' : ''}${k.n_chim ? `, ${pct(k.ok_chim, k.n_chim)} %` : ''}</li>` : ''}
         ${errs.length ? `<li>À travailler : ${errs.join(' ; ')}</li>` : '<li>Pas d’erreur qui se répète.</li>'}
         <li>${k.review} exercice${k.review > 1 ? 's' : ''} dans la file « À revoir »</li></ul>`;
     }).join('');

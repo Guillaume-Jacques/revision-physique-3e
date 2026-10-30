@@ -25,8 +25,8 @@ async function rpc(fn, args) {
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
-const APP_NAME = 'Révisions physique';
-const APP_TAG = 'La physique de 3e, une séance après l’autre.';
+const APP_NAME = 'Révisions physique-chimie';
+const APP_TAG = 'La physique-chimie de 3e, une séance après l’autre.';
 const MAIL_FN = `${CFG.url}/functions/v1/rv-mail`;
 async function mailFn(body) {
   const r = await fetch(MAIL_FN, { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -109,6 +109,61 @@ function skillActive(id) {
   return !!(S.cours && S.cours[s.lesson] && S.cours[s.lesson].done) || examSkills().includes(id);
 }
 const activeSkills = () => SKILLS.filter((s) => skillActive(s.id)).map((s) => s.id);
+
+/* ---------- Deux matières : physique et chimie ---------- */
+const SUBJ = { physique: { name: 'Physique', icon: '⚡' }, chimie: { name: 'Chimie', icon: '⚗️' } };
+const subjOf = (id) => (SKILLS.find((s) => s.id === id) || {}).subj || 'physique';
+const coursSubj = (c) => c.subj || 'physique';
+/* Matière d'un contrôle : d'après ses compétences ('mix' si les deux ou aucune précisée) */
+function examSubj(e) {
+  const ks = (e && e.skills) || [];
+  if (!ks.length) return 'mix';
+  const s = [...new Set(ks.map(subjOf))];
+  return s.length === 1 ? s[0] : 'mix';
+}
+const subjLabel = (k) => k === 'mix' ? 'physique-chimie' : SUBJ[k].name.toLowerCase();
+
+/* ---------- Saisie des réponses : nombre simple, nombre négatif (±) ou écriture scientifique (… × 10ⁿ) ---------- */
+function ansField(id, o, ph) {
+  const pm = (t) => `<button type="button" class="pm" data-pm="${t}" aria-label="Changer le signe">±</button>`;
+  const unit = o.units ? '' : o.unit ? `<span class="unit">${esc(o.unit)}</span>` : '';
+  if (o.sci) return `<div class="answer sci"><input id="${id}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="2,67"><span class="x10">× 10</span><span class="expw">${pm(id + 'x')}<input id="${id}x" class="exp" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="−26"></span>${unit}</div>
+    <p class="small muted" style="margin:6px 0 0">Écris le nombre avant « × 10 », puis l’exposant en haut (touche ± pour le signe moins). <button type="button" class="link calc-help" style="padding:0">🧮 Ma calculatrice</button></p>`;
+  return `<div class="answer"><input id="${id}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="${ph || 'Ta réponse'}">${o.neg ? pm(id) : ''}${unit}</div>`;
+}
+function bindAns() {
+  document.querySelectorAll('[data-pm]').forEach((b) => b.onclick = () => {
+    const i = document.getElementById(b.dataset.pm); const v = i.value.trim();
+    i.value = /^[-−]/.test(v) ? v.replace(/^[-−]\s*/, '') : '-' + v; i.focus();
+  });
+  document.querySelectorAll('.calc-help').forEach((b) => b.onclick = () => openCalc());
+}
+function readAns(id, sci) {
+  const el = document.getElementById(id); if (!el) return null;
+  const m = parseNum(el.value); if (m === null) return null;
+  if (!sci) return m;
+  const t = (document.getElementById(id + 'x').value || '').replace(/\s/g, '').replace(/[−–]/g, '-');
+  if (t === '' || t === '-') return m;
+  if (!/^-?\d{1,3}$/.test(t)) return null;
+  return m * Math.pow(10, +t);
+}
+function rawAns(id, sci) {
+  const el = document.getElementById(id); if (!el) return '';
+  if (!sci) return el.value;
+  const x = (document.getElementById(id + 'x').value || '').trim();
+  return x ? `${el.value} × 10^${x}` : el.value;
+}
+const tolOf = (o, v) => o.tol ?? (o.sci ? Math.abs(v) * 0.015 : Math.max(Math.abs(v) * 0.01, 0.01));
+const fmtAns = (o) => o.sci ? sciTxt(o.ans) : fr(o.ans);
+/* Écart d'une puissance de dix exacte : bon début, mauvais exposant */
+function sciError(x, ans) {
+  if (!x || !ans) return null;
+  const k = Math.log10(Math.abs(x / ans));
+  if (Math.abs(k - Math.round(k)) > 0.01 || Math.round(k) === 0) return null;
+  const ea = Math.floor(Math.log10(Math.abs(ans)) + 1e-9), ex = Math.floor(Math.log10(Math.abs(x)) + 1e-9);
+  if (ea !== 0 && ex === -ea) return { code: 'expSigne', msg: 'Le début est bon, mais le signe de l’exposant est inversé. Une très petite valeur a un exposant négatif.' };
+  return { code: 'saisie', msg: `Le début est bon, mais la puissance de dix est fausse (10${supN(ex)} au lieu de 10${supN(ea)}). Vérifie l’exposant et ta saisie à la calculatrice.` };
+}
 
 /* ---------- Révision espacée : chaque erreur revient à J+1, J+3, J+7, J+21 ---------- */
 const RV_INT = [1, 3, 7, 21];
@@ -245,7 +300,14 @@ function bossUnlocked() { const e = nextExam(); return bronzeCount() >= BOSS_NEE
 /* ---------- Choix adaptatif de l'exercice suivant ---------- */
 function chooseNext(run) {
   const recent = run.results.slice(-2).map((r) => r.skill);
-  const pool = run.only && run.only.length ? run.only : activeSkills();
+  let pool = run.only && run.only.length ? run.only : activeSkills();
+  // Physique et chimie : on alterne (50/50) ; une semaine avant un contrôle, sa matière passe à 80 %
+  const subs = [...new Set(pool.map(subjOf))];
+  if (subs.length > 1) {
+    const e = nextExam(), es = e && e.days <= 7 ? examSubj(e) : 'mix', last = run.results[run.results.length - 1];
+    const want = es !== 'mix' ? (Math.random() < 0.8 ? es : subs.find((x) => x !== es)) : last ? subs.find((x) => x !== subjOf(last.skill)) : pick(subs);
+    const f = pool.filter((k) => subjOf(k) === want); if (f.length) pool = f;
+  }
   const sorted = pool.slice().sort((a, b) => S.mastery[a] - S.mastery[b]);
   let skill; const r = Math.random();
   const notRepeated = (id) => !(recent.length === 2 && recent[0] === id && recent[1] === id);
@@ -591,7 +653,7 @@ let MISSION_LESSON = null;
 function missionDone() { S.missionDay = todayStr(); }
 function missionCard() {
   const m = mission(), e = nextExam();
-  const examLine = e && e.days <= 7 && !/Contrôle/.test(m.chip) ? `<p class="small" style="margin:0">📅 Contrôle ${examWhen(e)} : ${esc(e.label || 'physique')}</p>` : '';
+  const examLine = e && e.days <= 7 && !/Contrôle/.test(m.chip) ? `<p class="small" style="margin:0">📅 Contrôle ${examWhen(e)} : ${esc(e.label || 'physique-chimie')}</p>` : '';
   const waitDiag = !S.diagDone && (S.onboard || 0) >= 2 && !diagBlockReady() ? `<p class="small muted" style="margin:0">Bloc ${nextDiagBlock() + 1} du bilan : demain.</p>` : '';
   if (S.missionDay === todayStr() && !m.noDone) return { html: `<div class="card done stack">
       <span class="chip ok">✅ Mission du jour accomplie</span>
@@ -629,6 +691,7 @@ function openSettings() {
   document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="qmodal" role="dialog" aria-modal="true"><div class="card sheet stack pop">
     <h2>Réglages</h2>
     <button class="btn ghost" id="sAa">${S.large ? '🔤 Texte normal' : '🔠 Texte plus grand'}</button>
+    <button class="btn ghost" id="sCalc">🧮 Ma calculatrice${calcOf(S.calc) ? ' : ' + esc(calcOf(S.calc).name) : ''}</button>
     ${isStandalone() ? '' : '<button class="btn ghost" id="sInst">📲 Mettre l’appli sur mon téléphone</button><p class="small muted" id="sHow" hidden></p>'}
     ${PREVIEW ? '' : `${ACCTS.length > 1 ? '<button class="btn ghost" id="sSw">👥 Changer de profil</button>' : ''}<button class="btn ghost" id="sAdd">➕ Ajouter un profil sur cet appareil</button>`}
     <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Retirer mon profil de cet appareil'}</button>
@@ -636,6 +699,7 @@ function openSettings() {
   const close = () => { const m = document.getElementById('qmodal'); if (m) m.remove(); };
   document.getElementById('qmodal').onclick = (e) => { if (e.target.id === 'qmodal') close(); };
   document.getElementById('sClose').onclick = close;
+  document.getElementById('sCalc').onclick = () => { close(); openCalc(); };
   document.getElementById('sAa').onclick = () => { S.large = !S.large; document.body.classList.toggle('large', S.large); saveState(); close(); screenHome(); };
   const si = document.getElementById('sInst');
   if (si) si.onclick = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; close(); return; } const h = document.getElementById('sHow'); h.innerHTML = installHow(); h.hidden = false; };
@@ -648,7 +712,8 @@ function screenHome() {
   const L = levelInfo(S.xp);
   const unlocked = bossUnlocked(), nb = bronzeCount();
   const M = missionCard();
-  const act = SKILLS.filter((s) => skillActive(s.id)), locked = SKILLS.filter((s) => !skillActive(s.id));
+  const sj = S.subj || 'physique', inSj = (s) => (s.subj || 'physique') === sj;
+  const act = SKILLS.filter((s) => skillActive(s.id) && inSj(s)), locked = SKILLS.filter((s) => !skillActive(s.id) && inSj(s));
   const coursDone = COURS.filter((c) => coursProg(c.id).done).length;
   render(`
     <div class="top">
@@ -661,14 +726,16 @@ function screenHome() {
     </div>
     ${installCard()}
     ${M.html}
-    <h3 style="margin:18px 4px 10px">Autres activités</h3>
-    <div class="acts">
+    <div class="subjs" role="tablist">${Object.entries(SUBJ).map(([k, v]) => `<button role="tab" class="subj ${sj === k ? 'on' : ''}" data-sj="${k}" ${sj === k ? 'aria-selected="true"' : ''}>${v.icon} ${v.name}</button>`).join('')}</div>
+    <h3 style="margin:14px 4px 10px">Autres activités en ${SUBJ[sj].name.toLowerCase()}</h3>
+    <div class="acts subj-${sj}">
       <button class="act" id="redac"><span class="ic">✍️</span><b>Rédiger</b><span class="small muted">Comme sur ta copie</span></button>
+      ${sj === 'chimie' ? '<button class="act" id="calc"><span class="ic">🧮</span><b>Ma calculatrice</b><span class="small muted">' + (calcOf(S.calc) ? esc(calcOf(S.calc).name) : 'Choisis ton modèle') + '</span></button>' : ''}
       <button class="act" id="cours"><span class="ic">📚</span><b>Mes cours</b><span class="small muted">${coursDone}/${COURS.length} lus</span></button>
       <button class="act ${unlocked ? '' : 'off'}" id="boss"><span class="ic">👾</span><b>Contrôle blanc</b><span class="small muted">${unlocked ? (S.boss.best != null ? `Record ${fr(S.boss.best, 1)}/20` : '8 questions, 20 min') : `🔒 ${nb}/${BOSS_NEED} bronzes`}</span></button>
-      <button class="act" id="bat"><span class="ic">🕵️</span><b>Bats ta note</b><span class="small muted">Chasse à l’erreur</span></button>
+      ${sj === 'physique' ? '<button class="act" id="bat"><span class="ic">🕵️</span><b>Bats ta note</b><span class="small muted">Chasse à l’erreur</span></button>' : ''}
     </div>
-    <h3 style="margin:18px 4px 6px">Mes compétences</h3>
+    <h3 style="margin:18px 4px 6px">Mes compétences en ${SUBJ[sj].name.toLowerCase()}</h3>
     <p class="small muted" style="margin:0 4px 10px">Une médaille se gagne en réussissant sur plusieurs jours : bronze en 2 jours, argent en 3, or en 4.</p>
     <div class="skills">${act.map((s) => `
       <button class="skill" data-s="${s.id}">
@@ -676,20 +743,22 @@ function screenHome() {
         <div class="nm">${s.name}</div>
         <div class="bar"><i style="width:${S.mastery[s.id]}%"></i></div>
       </button>`).join('')}</div>
-    ${locked.length ? `<details class="soon"><summary>🔒 Bientôt (${locked.length}) <span class="small muted">: s’ouvrent avec les leçons d’avance</span></summary>
+    ${locked.length ? `<details class="soon"><summary>🔒 Bientôt (${locked.length}) <span class="small muted">: s’ouvrent à la fin de leur leçon</span></summary>
       <div class="skills" style="margin-top:10px">${locked.map((s) => `
       <button class="skill locked" data-l="${s.lesson}">
         <div class="row between"><span class="ic">${s.icon}</span><span class="small muted">🔒</span></div>
         <div class="nm">${s.name}</div>
         <div class="small muted">Après la leçon « ${COURS.find((c) => c.id === s.lesson).title} »</div>
       </button>`).join('')}</div></details>` : ''}
-    <div class="row" style="margin-top:14px"><button class="btn ghost" id="cards">🃏 Mes cartes formules (${activeCards()}/${act.length})</button></div>`);
+    <div class="row" style="margin-top:14px"><button class="btn ghost" id="cards">🃏 Mes cartes formules (${activeCards()}/${SKILLS.filter((x) => skillActive(x.id)).length})</button></div>`);
   const on = (id, f) => { const el = document.getElementById(id); if (el) el.onclick = f; };
   on('mgo', M.go);
   on('set', openSettings);
   on('redac', () => startRun('redac'));
   on('cours', screenCours);
   on('bat', () => startRun('bat'));
+  on('calc', () => openCalc());
+  $app.querySelectorAll('[data-sj]').forEach((b) => b.onclick = () => { S.subj = b.dataset.sj; saveState(); screenHome(); });
   on('boss', () => unlocked ? startRun('boss') : toast(`Le contrôle blanc s’ouvre avec ${BOSS_NEED} médailles bronze (tu en as ${nb}), ou une semaine avant un contrôle.`));
   on('cards', screenCards);
   bindInstall();
@@ -739,14 +808,16 @@ function coursHomeCard() {
     </div>`;
 }
 function screenCours() {
-  let lastChap = '';
+  let lastChap = '', lastSj = '';
+  const order = COURS.slice().sort((a, b) => (coursSubj(a) === (S.subj || 'physique') ? 0 : 1) - (coursSubj(b) === (S.subj || 'physique') ? 0 : 1));
   render(`
     <button class="link" id="back">← Retour</button>
     <h1>Mes cours</h1>
-    <p class="muted small">Dans l’ordre de ton cahier, puis deux leçons d’avance pour être ${gw(GEN(), 'prête', 'prêt', 'prêt(e)')} quand le prof les commencera.</p>
-    ${COURS.map((c) => {
-      const p = coursProg(c.id), n = c.sections.length, seen = p.seen.length;
-      const head = c.chap !== lastChap ? `<h3 style="margin:16px 4px 8px">${c.chap}</h3>` : ''; lastChap = c.chap;
+    <p class="muted small">Dans l’ordre de ton cahier, avec quelques leçons d’avance pour être ${gw(GEN(), 'prête', 'prêt', 'prêt(e)')} quand le prof les commencera.</p>
+    ${order.map((c) => {
+      const p = coursProg(c.id), n = c.sections.length, seen = p.seen.length, sj = coursSubj(c);
+      const sh = sj !== lastSj ? `<h2 style="margin:22px 4px 0">${SUBJ[sj].icon} ${SUBJ[sj].name}</h2>` : ''; lastSj = sj;
+      const head = sh + (c.chap !== lastChap ? `<h3 style="margin:12px 4px 8px">${c.chap}</h3>` : ''); lastChap = c.chap;
       return `${head}<button class="lesson" data-c="${c.id}">
         <span class="lic">${c.icon}</span>
         <span class="grow"><b>${c.title}</b>${c.ahead ? ' <span class="pill tiny">🚀 en avance</span>' : ''}<br><span class="small muted">${n} parties${c.exos.length ? ` • ${c.exos.length} exercices corrigés` : ''}</span>
@@ -897,7 +968,7 @@ function screenExo(id, k) {
       <h2>${e.title}</h2>
       <div class="question">${e.enonce}</div>
       ${e.ans != null ? `<p class="small muted">Fais le calcul sur ton cahier, tape ta réponse, puis vérifie.</p>
-      <div class="answer"><input id="exans" inputmode="decimal" autocomplete="off" placeholder="Ta réponse"><span class="unit">${esc(e.unit || '')}</span></div>
+      ${ansField('exans', { sci: e.sci, unit: e.unit || '' })}
       <button class="btn" id="excheck">Vérifier ma réponse</button><div id="exfb"></div>`
       : `<p class="small muted">Essaie d’abord sur ton cahier, puis révèle la correction étape par étape.</p>`}
       <ol class="steps" id="steps"></ol>
@@ -911,16 +982,16 @@ function screenExo(id, k) {
   if (ck) {
     let tries = 0;
     const check = () => {
-      const raw = document.getElementById('exans').value, x = parseNum(raw), out = document.getElementById('exfb');
+      const raw = rawAns('exans', e.sci), x = readAns('exans', e.sci), out = document.getElementById('exfb');
       if (x === null) { out.innerHTML = '<div class="fb hint">Écris un nombre, par exemple 3,25</div>'; return; }
       tries++;
-      const tol = e.tol ?? Math.max(Math.abs(e.ans) * 0.01, 0.01), ok = Math.abs(x - e.ans) <= tol;
+      const tol = tolOf(e, e.ans), ok = Math.abs(x - e.ans) <= tol;
       if (ok) {
         out.innerHTML = `<div class="fb good pop"><b>Bravo, c’est juste !</b>${tries === 1 ? ' +5 XP' : ''} Regarde quand même la correction pour vérifier ta méthode.</div>`;
         if (tries === 1) addXP(5);
         ck.remove();
       } else {
-        const g = genericError(x, e.ans);
+        const g = (e.sci ? sciError(x, e.ans) : null) || genericError(x, e.ans);
         if (tries === 1 && skillActive(c.skills[0])) addReview(c.skills[0], 2, g ? g.code : 'autre');
         out.innerHTML = `<div class="fb bad pop"><b>Pas encore.</b> ${g ? g.msg : 'Vérifie ton calcul.'} ${tries >= 2 ? 'Révèle l’étape 1 pour te débloquer.' : 'Tu peux réessayer.'}</div>`;
       }
@@ -928,7 +999,8 @@ function screenExo(id, k) {
       saveState();
     };
     ck.onclick = check;
-    document.getElementById('exans').onkeydown = (ev) => { if (ev.key === 'Enter') check(); };
+    bindAns();
+    ['exans', 'exansx'].map((k) => document.getElementById(k)).filter(Boolean).forEach((el) => el.onkeydown = (ev) => { if (ev.key === 'Enter') check(); });
   }
   btn.onclick = () => {
     if (shown < e.steps.length) {
@@ -951,6 +1023,7 @@ let RUN = null;
 const WARM = 'warmup';
 function startRun(mode, skill, preset, isMission) {
   RUN = { mode, skill, mission: !!isMission, idx: 0, results: [], xp0: S.xp, medals0: SKILLS.map((s) => medalOf(S.mastery[s.id])), started: Date.now() };
+  if (mode === 'redac' && !preset) RUN.subj = S.subj || 'physique';
   if (preset) { RUN.items = preset; RUN.total = preset.length; }
   else if (mode === 'diag') { RUN.block = nextDiagBlock(); RUN.items = buildDiagnostic(RUN.block); RUN.total = RUN.items.length; }
   else if (mode === 'boss') {
@@ -977,8 +1050,9 @@ function startRun(mode, skill, preset, isMission) {
 function nextRedac() {
   S.redacLv = S.redacLv || {};
   const done = RUN.results.map((r) => r.skill);
-  const pool = REDAC_SKILLS.filter((k) => !done.includes(k));
-  const sk = pool.sort((a, b) => S.mastery[a] - S.mastery[b] + (Math.random() - 0.5) * 30)[0] || pick(REDAC_SKILLS);
+  const base = REDAC_SKILLS.filter((k) => !RUN.subj || subjOf(k) === RUN.subj);
+  const pool = base.filter((k) => !done.includes(k));
+  const sk = pool.sort((a, b) => S.mastery[a] - S.mastery[b] + (Math.random() - 0.5) * 30)[0] || pick(base);
   return genRedac(sk, S.redacLv[sk] || 1);
 }
 function nextItem() {
@@ -1044,7 +1118,7 @@ function askConf(cb) {
 function validate() {
   const c = RUN.cur, it = c.item;
   if (c.done) return;
-  if (it.type === 'num') { if (parseNum(document.getElementById('ans').value) === null) return fb('hint', 'Écris un nombre, par exemple 3,25'); }
+  if (it.type === 'num') { if (readAns('ans', it.sci) === null) return fb('hint', it.sci ? 'Écris le nombre avant « × 10 », par exemple 2,67, et un exposant entier.' : 'Écris un nombre, par exemple 3,25'); }
   else if (c.sel == null) return toast('Touche d’abord une réponse.');
   const go = () => it.type === 'num' ? checkNum() : checkQcm(c.sel, $app.querySelectorAll('.choice')[c.sel]);
   if (c.conf) return go();
@@ -1055,7 +1129,7 @@ function screenItem() {
   if (it.type === 'steps') return screenSteps();
   let body = '';
   if (it.type === 'num') {
-    body = `<div class="answer"><input id="ans" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="Ta réponse"><span class="unit">${esc(it.unit)}</span></div>`;
+    body = ansField('ans', it);
   } else {
     body = `<div class="choices">${it.choices.map((c, i) => `<button class="choice" data-i="${i}">${c.t}</button>`).join('')}</div>`;
   }
@@ -1071,9 +1145,10 @@ function screenItem() {
     </div>`);
   document.getElementById('quit').onclick = askQuit;
   document.getElementById('ok').onclick = validate;
+  bindAns();
   if (it.type === 'num') {
     const inp = document.getElementById('ans'); inp.focus({ preventScroll: true });
-    inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); validate(); } };
+    [inp, document.getElementById('ansx')].filter(Boolean).forEach((el) => el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); validate(); } });
   } else {
     $app.querySelectorAll('.choice').forEach((b) => b.onclick = () => {
       if (RUN.cur.done || b.classList.contains('wrong')) return;
@@ -1112,7 +1187,9 @@ function showHint() {
   c.hints++;
 }
 function parseNum(s) {
-  const t = String(s).replace(/\s/g, '').replace(',', '.').replace(/[^0-9.\-]/g, '');
+  const e = String(s).replace(/\s/g, '').replace(/[−–]/g, '-').replace(',', '.').match(/^(-?\d*\.?\d+)[eE](-?\d+)$/);
+  if (e) return +(e[1] + 'e' + e[2]);
+  const t = String(s).replace(/\s/g, '').replace(/[−–]/g, '-').replace(',', '.').replace(/[^0-9.\-]/g, '');
   if (!t || isNaN(+t)) return null;
   return +t;
 }
@@ -1132,13 +1209,12 @@ function afterFirstTry() { // après une première erreur en QCM : on retouche d
 function checkNum() {
   const c = RUN.cur, it = c.item;
   if (c.done) return;
-  const raw = document.getElementById('ans').value;
-  const x = parseNum(raw);
+  const raw = rawAns('ans', it.sci);
+  const x = readAns('ans', it.sci);
   if (x === null) { fb('hint', 'Écris un nombre, par exemple 3,25'); c.conf = c.tries ? c.conf : null; return; }
-  const tol = it.tol ?? Math.max(Math.abs(it.ans) * 0.01, 0.01);
-  if (near(x, it.ans, tol)) return finishItem(true, null, raw);
-  let err = (it.errs || []).find((e) => near(x, e.v, e.tol ?? Math.max(Math.abs(e.v) * 0.01, 0.01)));
-  if (!err) err = genericError(x, it.ans) || { code: 'autre', msg: 'Ce n’est pas encore ça.' };
+  if (near(x, it.ans, tolOf(it, it.ans))) return finishItem(true, null, raw);
+  let err = (it.errs || []).find((e) => near(x, e.v, e.tol ?? tolOf(it, e.v)));
+  if (!err) err = (it.sci ? sciError(x, it.ans) : null) || genericError(x, it.ans) || { code: 'autre', msg: 'Ce n’est pas encore ça.' };
   if (isTest()) return finishItem(false, err.code, raw);
   wrongAttempt(err, raw);
 }
@@ -1162,7 +1238,7 @@ function wrongAttempt(err, raw, isQcm) {
   if (c.tries === 1 && c.conf === 'sure') html += `<br><span class="small">Tu étais ${gw(GEN(), 'sûre', 'sûr', 'sûr(e)')} de toi : c’est justement l’erreur à bien comprendre.</span>`;
   fb('bad', html);
   if (c.hints < it.hints.length) { fb('hint', '💡 ' + it.hints[c.hints], true); c.hints++; }
-  if (!isQcm) { const inp = document.getElementById('ans'); inp.select(); }
+  if (!isQcm) { const inp = document.getElementById('ans'); if (inp) inp.select(); }
 }
 
 /* ---------- Mode rédaction : un problème en étapes ---------- */
@@ -1175,7 +1251,7 @@ function screenSteps() {
   if (cur) {
     active = `<div class="step cur pop"><span class="small muted">Étape ${c.si + 1}/${it.steps.length} • ${cur.label}</span><div class="question" style="margin:6px 0">${cur.prompt}</div>`;
     if (cur.kind === 'qcm') active += `<div class="choices">${cur.choices.map((ch, j) => `<button class="choice" data-j="${j}">${ch.t}</button>`).join('')}</div>`;
-    else active += `<div class="answer"><input id="sans" inputmode="decimal" autocomplete="off" placeholder="Ton résultat">${cur.units ? '' : `<span class="unit">${esc(cur.unit)}</span>`}</div>
+    else active += `${ansField('sans', cur, 'Ton résultat')}
       ${cur.units ? `<p class="small muted" style="margin:8px 0 4px">L’unité :</p><div class="units">${cur.units.map((u) => `<button class="chipbtn" data-u="${esc(u)}">${esc(u)}</button>`).join('')}</div>` : ''}
       <div class="actions" style="margin-top:10px"><button class="btn ghost" id="sdk">Je bloque</button><button class="btn" id="sok">Valider</button></div>`;
     active += `<div id="sfb"></div></div>`;
@@ -1225,18 +1301,18 @@ function screenSteps() {
   } else {
     $app.querySelectorAll('.units .chipbtn').forEach((b) => b.onclick = () => { $app.querySelectorAll('.units .chipbtn').forEach((x) => x.classList.remove('on')); b.classList.add('on'); c.unitSel = b.dataset.u; });
     const check = () => {
-      const x = parseNum(document.getElementById('sans').value);
+      const x = readAns('sans', cur.sci);
       if (x === null) return sfb('hint', 'Écris un nombre, par exemple 3,25');
       if (cur.units && !c.unitSel) return sfb('hint', 'Choisis aussi l’unité.');
-      const tol = cur.tol ?? Math.max(Math.abs(cur.ans) * 0.01, 0.01);
-      const okN = near(x, cur.ans, tol), okU = !cur.units || c.unitSel === cur.unit;
+      const okN = near(x, cur.ans, tolOf(cur, cur.ans)), okU = !cur.units || c.unitSel === cur.unit;
       if (okN && okU) return advance(true);
       if (okN) return miss(`Le nombre est juste, mais pas l’unité. Ici on cherche ${cur.unit === 'm' ? 'une distance en mètres' : cur.unit === 's' || cur.unit === 'min' ? 'une durée' : cur.unit === 'km/h' || cur.unit === 'm/s' ? 'une vitesse' : 'une grandeur en ' + cur.unit}.`, 'unite');
-      const e = (cur.errs || []).find((er) => near(x, er.v, Math.max(Math.abs(er.v) * 0.01, 0.01))) || genericError(x, cur.ans) || { code: 'autre', msg: 'Vérifie ton calcul.' };
+      const e = (cur.errs || []).find((er) => near(x, er.v, tolOf(cur, er.v))) || (cur.sci ? sciError(x, cur.ans) : null) || genericError(x, cur.ans) || { code: 'autre', msg: 'Vérifie ton calcul.' };
       miss(e.msg, e.code);
     };
     document.getElementById('sok').onclick = check;
-    document.getElementById('sans').onkeydown = (ev) => { if (ev.key === 'Enter') check(); };
+    bindAns();
+    ['sans', 'sansx'].map((k) => document.getElementById(k)).filter(Boolean).forEach((el) => el.onkeydown = (ev) => { if (ev.key === 'Enter') check(); });
     document.getElementById('sdk').onclick = () => { c.stepTry = 1; miss('Pas grave, regarde comment on fait.', 'nsp'); };
     document.getElementById('sans').focus({ preventScroll: true });
   }
@@ -1284,7 +1360,7 @@ function finishItem(correct, errCode, raw, lastMsg) {
   } else {
     if (it.type === 'qcm') { const good = $app.querySelectorAll('.choice')[it.choices.findIndex((x) => x.ok)]; if (good) good.classList.add('right'); }
     fbEl.innerHTML = (lastMsg ? `<div class="fb bad">${lastMsg}</div>` : '')
-      + (it.type === 'steps' ? method : `<div class="fb sol"><b>${it.type === 'num' ? `La réponse : ${fr(it.ans)} ${esc(it.unit)}` : 'Retiens bien la bonne réponse en vert.'}</b>${it.type === 'num' && it.sol && it.sol.length ? `<ol>${steps(it).map((s) => `<li>${s}</li>`).join('')}</ol>` : it.hints && it.hints[0] ? `<p style="margin:6px 0 0">📌 ${it.hints[0]}</p>` : ''}</div>`)
+      + (it.type === 'steps' ? method : `<div class="fb sol"><b>${it.type === 'num' ? `La réponse : ${fmtAns(it)} ${esc(it.unit)}` : 'Retiens bien la bonne réponse en vert.'}</b>${it.type === 'num' && it.sol && it.sol.length ? `<ol>${steps(it).map((s) => `<li>${s}</li>`).join('')}</ol>` : it.hints && it.hints[0] ? `<p style="margin:6px 0 0">📌 ${it.hints[0]}</p>` : ''}</div>`)
       + `<div class="small muted">Pas grave : cet exercice reviendra demain sous une autre forme. +2 XP pour l’effort.</div>`;
   }
   document.getElementById('btns').innerHTML = `<div class="actions one"><button class="btn ${correct ? 'good' : ''}" id="next">Continuer</button></div>`;
@@ -1471,7 +1547,7 @@ function finishBoss(streakMsg) {
     <h3 style="margin:8px 4px">La correction</h3>
     ${res.map((r, i) => `<div class="card"><div class="row between"><span class="chip">${SKILLS.find((s) => s.id === r.skill).icon} Q${i + 1}</span>${r.correct ? '<span class="status st-ok">Juste</span>' : '<span class="status st-low">À revoir</span>'}</div>
       <p class="small" style="margin-top:8px">${r.item.q}</p>
-      ${r.correct ? '' : `<div class="fb sol small"><b>${r.item.type === 'num' ? `Réponse : ${fr(r.item.ans)} ${esc(r.item.unit)}` : 'Réponse : ' + r.item.choices.find((c) => c.ok).t}</b>${r.item.sol && r.item.sol.length ? `<ol>${r.item.sol.map((s) => `<li>${s}</li>`).join('')}</ol>` : ''}</div>`}</div>`).join('')}
+      ${r.correct ? '' : `<div class="fb sol small"><b>${r.item.type === 'num' ? `Réponse : ${fmtAns(r.item)} ${esc(r.item.unit)}` : 'Réponse : ' + r.item.choices.find((c) => c.ok).t}</b>${r.item.sol && r.item.sol.length ? `<ol>${r.item.sol.map((s) => `<li>${s}</li>`).join('')}</ol>` : ''}</div>`}</div>`).join('')}
     <button class="btn" id="home">Retour à l’accueil</button>`);
   document.getElementById('home').onclick = screenHome;
 }
@@ -1542,7 +1618,7 @@ function weekCard(s, st) {
   let ex = '';
   if (e && e.days <= 7) {
     const from = addDays(e.day, -7), done = (s.boss.history || []).filter((h) => h.date >= from);
-    ex = `<li>📅 <b>Contrôle ${examWhen(e)}</b> (${esc(e.label || 'physique')}) : ${done.length ? `contrôle blanc fait, ${fr(done[done.length - 1].note, 1)}/20.` : e.days <= 2 ? '<b>contrôle blanc pas encore fait</b>, c’est le moment.' : 'l’appli propose chaque jour un programme spécial.'}</li>`;
+    ex = `<li>📅 <b>Contrôle ${examWhen(e)}</b> (${esc(e.label || 'physique-chimie')}) : ${done.length ? `contrôle blanc fait, ${fr(done[done.length - 1].note, 1)}/20.` : e.days <= 2 ? '<b>contrôle blanc pas encore fait</b>, c’est le moment.' : 'l’appli propose chaque jour un programme spécial.'}</li>`;
   }
   return `<div class="card week ${feu} stack"><h2>Cette semaine</h2><ul><li>${reg}</li><li>📈 ${prog}</li><li>🎯 ${att}</li>${ex}</ul></div>`;
 }
@@ -1684,13 +1760,13 @@ function tabSuivi(st) {
     </div>
     <div class="card stack">
       <h3>Maîtrise par compétence</h3>
-      ${started.length ? `<table class="mt">${started.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalOf(s.mastery[k.id]) === 'none' ? '<span class="medal m-none">en cours</span>' : medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>` : '<p class="small muted" style="margin:0">Aucune compétence travaillée pour l’instant.</p>'}
+      ${started.length ? Object.keys(SUBJ).map((sj) => { const ks = started.filter((k) => (k.subj || 'physique') === sj); return ks.length ? `<b class="small">${SUBJ[sj].icon} ${SUBJ[sj].name}</b><table class="mt">${ks.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalOf(s.mastery[k.id]) === 'none' ? '<span class="medal m-none">en cours</span>' : medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>` : ''; }).join('') : '<p class="small muted" style="margin:0">Aucune compétence travaillée pour l’instant.</p>'}
       ${notYet.length ? `<details><summary class="small"><b>Pas encore commencées (${notYet.length})</b></summary><p class="small muted" style="margin:6px 0 0">${notYet.map((k) => `${k.icon} ${k.name}`).join(' • ')}</p></details>` : ''}
       <p class="small muted" style="margin:0">▲ ▼ : évolution sur 7 jours. Une petite baisse après quelques jours sans pratique est normale.${closed ? ` ${closed} compétence${closed > 1 ? 's' : ''} s’ouvri${closed > 1 ? 'ront' : 'ra'} avec les leçons d’avance.` : ''}</p>
     </div>
     <div class="card stack">
       <h3>Cours lus</h3>
-      <table>${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title}${c.ahead ? ' <span class="small muted">(en avance)</span>' : ''}</td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
+      <table>${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title} <span class="small muted">(${SUBJ[coursSubj(c)].name.toLowerCase()}${c.ahead ? ', en avance' : ''})</span></td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
     </div>
     <details class="card stack"><summary><b>Plus de détails</b> <span class="small muted">erreurs, derniers exercices, indicateurs</span></summary>
       <h3 style="margin-top:10px">Erreurs les plus fréquentes (30 j)</h3>
@@ -1708,17 +1784,19 @@ function tabControles(st) {
   const s = childState(st), name = childName(st);
   const ex = childExams(st), cp = childPlan(st).filter((p) => p.kind === 'copie');
   const fam = (p) => p.student ? '' : ' <span class="small muted">(toute la famille)</span>';
-  const skillOpts = SKILLS.filter((k) => isOpen(s, k)).map((k) => `<label class="ck line"><input type="checkbox" value="${k.id}"> ${k.icon} ${k.name}</label>`).join('');
+  const skillOpts = Object.keys(SUBJ).map((sj) => `<b class="small" data-sjh="${sj}">${SUBJ[sj].icon} ${SUBJ[sj].name}</b>` + SKILLS.filter((k) => (k.subj || 'physique') === sj).map((k) => `<label class="ck line" data-sjk="${sj}"><input type="checkbox" value="${k.id}"> ${k.icon} ${k.name}${isOpen(s, k) ? '' : ' <span class="small muted">(leçon pas encore lue)</span>'}</label>`).join('')).join('');
   return `<div class="ptitle"><h1>Contrôles de ${esc(name)}</h1></div>
   <div class="card stack">
     <h2>📅 Prochains contrôles</h2>
-    ${ex.length ? `<table>${ex.map((e) => `<tr><td><b>${fmtD(e.day)}</b> • ${esc(e.label || 'Contrôle')}${fam(e)}<br><span class="small muted">${examWhen(e)} • ${(e.skills || []).map((k) => (SKILLS.find((x) => x.id === k) || {}).name).filter(Boolean).join(', ') || 'toutes les compétences'}</span></td><td class="tact"><button class="more" data-del="${e.id}" data-what="le contrôle du ${fmtD(e.day)}" aria-label="Options">⋯</button></td></tr>`).join('')}</table>`
+    ${ex.length ? `<table>${ex.map((e) => `<tr><td><b>${fmtD(e.day)}</b> • ${esc(e.label || 'Contrôle')}${fam(e)}<br><span class="small muted">${examWhen(e)} • ${SUBJ[examSubj(e)] ? SUBJ[examSubj(e)].icon + ' ' + SUBJ[examSubj(e)].name + ' : ' : ''}${examSubj(e) !== 'mix' && SKILLS.filter((k) => (k.subj || 'physique') === examSubj(e)).every((k) => (e.skills || []).includes(k.id)) ? 'toutes les compétences' : (e.skills || []).map((k) => (SKILLS.find((x) => x.id === k) || {}).name).filter(Boolean).join(', ') || 'toutes les compétences'}</span></td><td class="tact"><button class="more" data-del="${e.id}" data-what="le contrôle du ${fmtD(e.day)}" aria-label="Options">⋯</button></td></tr>`).join('')}</table>`
       : `<p class="small muted" style="margin:0">Aucun contrôle saisi. Dès qu’une date est connue, l’appli prépare ${esc(name)} : programme ciblé 7 jours avant, contrôle blanc à J-2.</p>`}
     <details><summary><b>+ Ajouter un contrôle</b></summary>
       <div class="stack" style="margin-top:10px">
         <label class="small" for="exday"><b>Date du contrôle</b></label><input class="field" type="date" id="exday" min="${todayStr()}">
-        <label class="small" for="exlabel"><b>Titre</b> <span class="muted">(facultatif)</span></label><input class="field" id="exlabel" maxlength="120" placeholder="Ex. : vitesse et distance d’arrêt">
-        <details><summary class="small"><b>Préciser les compétences</b> <span class="muted">(facultatif, sinon toutes)</span></summary><div class="cks col" id="exsk" style="margin-top:8px">${skillOpts}</div></details>
+        <label class="small" for="exsubj"><b>Matière</b></label>
+        <select class="field" id="exsubj"><option value="physique">⚡ Physique</option><option value="chimie">⚗️ Chimie</option><option value="mix">Les deux</option></select>
+        <label class="small" for="exlabel"><b>Titre</b> <span class="muted">(facultatif)</span></label><input class="field" id="exlabel" maxlength="120" placeholder="Ex. : vitesse et distance d’arrêt, ou l’atome">
+        <details><summary class="small"><b>Préciser les compétences</b> <span class="muted">(facultatif, sinon toutes celles de la matière)</span></summary><div class="cks col" id="exsk" style="margin-top:8px">${skillOpts}</div></details>
         <button class="btn" id="exadd">Enregistrer le contrôle</button></div>
     </details>
   </div>
@@ -1789,11 +1867,21 @@ function accessCard(st) {
     </div></details>
   </div>`;
 }
+function calcCard(st) {
+  const s = childState(st), name = childName(st);
+  const row = childPlan(st).filter((p) => p.kind === 'reglage' && p.label === 'calc' && p.student === st.id).sort((a, b) => a.created_at < b.created_at ? 1 : -1)[0];
+  const curId = row && (!s.calcAt || new Date(row.created_at).getTime() >= s.calcAt) ? row.error_code : s.calc;
+  return `<details class="card stack"><summary><b>🧮 Calculatrice de ${esc(name)}</b> <span class="small muted">${calcOf(curId) ? esc(calcOf(curId).name) : 'pas encore choisie'}</span></summary>
+    <div class="stack" style="margin-top:8px">
+    <p class="small muted" style="margin:0">En chimie, l’appli explique comment taper les puissances de dix (1,67 × 10⁻²⁷) sur ce modèle. ${esc(name)} peut aussi la choisir dans son menu ⚙️.</p>
+    <select class="field" id="calcsel">${CALCS.map((c) => `<option value="${c.id}" ${c.id === curId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+    <button class="btn" id="calcsave">Enregistrer la calculatrice</button></div></details>`;
+}
 function tabReglages(st) {
   const studs = DASH.students || [], n = FAM.notify || 'each';
   const opt = (v, t, d) => `<label class="radio"><input type="radio" name="notify" value="${v}" ${n === v ? 'checked' : ''}><span><b>${t}</b><br><span class="small muted">${d}</span></span></label>`;
   return `<div class="ptitle"><h1>Réglages</h1></div>
-  ${st ? accessCard(st) : ''}
+  ${st ? accessCard(st) + calcCard(st) : ''}
   <div class="card stack">
     <h2>✉️ E-mails</h2>
     <p class="small muted" style="margin:0">Envoyés à ${esc(FAM.email || '')}</p>
@@ -1828,7 +1916,7 @@ async function shareText(title, text, url) {
   catch (e) { ask({ title: 'Copie ce message', text: 'Puis colle-le dans WhatsApp ou un SMS.', copy: full, ok: 'Copier', cancel: 'Fermer' }); }
 }
 function inviteShare(code) {
-  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique de 3e. Crée ton espace parent (« Je suis parent ») avec ton adresse e-mail et ce code d’invitation : ${code}`, `${location.origin}${location.pathname}`);
+  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique-chimie de 3e. Crée ton espace parent (« Je suis parent ») avec ton adresse e-mail et ce code d’invitation : ${code}`, `${location.origin}${location.pathname}`);
 }
 function bindParent(st) {
   const $ = (id) => document.getElementById(id);
@@ -1852,7 +1940,7 @@ function bindParent(st) {
   // Accès
   $app.querySelectorAll('[data-share]').forEach((b) => b.onclick = async () => {
     const r = await call('rv_child_link', { p_child: b.dataset.share, p_renew: false }); if (!r) return;
-    shareText(APP_NAME, `${b.dataset.name}, voici ton lien pour réviser la physique. Ouvre-le une fois sur ton téléphone (ou ta tablette) : ensuite l’appli s’ouvrira directement.`, childUrl(r.secret));
+    shareText(APP_NAME, `${b.dataset.name}, voici ton lien pour réviser la physique-chimie. Ouvre-le une fois sur ton téléphone (ou ta tablette) : ensuite l’appli s’ouvrira directement.`, childUrl(r.secret));
   });
   $app.querySelectorAll('[data-code]').forEach((b) => b.onclick = async () => {
     const r = await call('rv_child_code', { p_child: b.dataset.code }); if (!r) return;
@@ -1875,7 +1963,7 @@ function bindParent(st) {
   $app.querySelectorAll('[data-renew]').forEach((b) => b.onclick = async () => {
     if (!await ask({ title: 'Créer un nouveau lien ?', text: 'L’ancien lien ne fonctionnera plus. Les appareils déjà associés restent connectés (tu peux les retirer un par un).', ok: 'Créer le nouveau lien' })) return;
     const r = await call('rv_child_link', { p_child: b.dataset.renew, p_renew: true }, 'Nouveau lien créé'); if (!r) return;
-    shareText(APP_NAME, `${b.dataset.name}, voici ton nouveau lien pour réviser la physique :`, childUrl(r.secret));
+    shareText(APP_NAME, `${b.dataset.name}, voici ton nouveau lien pour réviser la physique-chimie :`, childUrl(r.secret));
   });
   $app.querySelectorAll('[data-cdel]').forEach((b) => b.onclick = async () => {
     const nm = b.dataset.name, n = +b.dataset.n || 0, nd = +b.dataset.ndev || 0;
@@ -1931,8 +2019,15 @@ function bindParent(st) {
   if ($('exadd')) $('exadd').onclick = () => {
     const day = $('exday').value;
     if (!day) return toast('Choisis la date du contrôle.');
-    add({ p_kind: 'exam', p_day: day, p_label: $('exlabel').value.trim() || 'Contrôle de physique', p_skills: [...document.querySelectorAll('#exsk input:checked')].map((x) => x.value) });
+    const sj = $('exsubj').value, picked = [...document.querySelectorAll('#exsk input:checked')].map((x) => x.value);
+    const skills = picked.length ? picked : sj === 'mix' ? [] : SKILLS.filter((k) => (k.subj || 'physique') === sj).map((k) => k.id);
+    add({ p_kind: 'exam', p_day: day, p_label: $('exlabel').value.trim() || `Contrôle de ${subjLabel(sj)}`, p_skills: skills });
   };
+  if ($('calcsave')) $('calcsave').onclick = () => add({ p_kind: 'reglage', p_label: 'calc', p_error_code: $('calcsel').value });
+  if ($('exsubj')) {
+    const f = () => { const v = $('exsubj').value; $app.querySelectorAll('[data-sjk],[data-sjh]').forEach((el) => { el.style.display = v !== 'mix' && (el.dataset.sjk || el.dataset.sjh) !== v ? 'none' : ''; }); };
+    $('exsubj').onchange = f; f();
+  }
   if ($('cpadd')) $('cpadd').onclick = () => {
     const [txt, skill, code] = COPY_TYPES[+$('cptype').value];
     add({ p_kind: 'copie', p_label: $('cplabel').value.trim() || txt, p_skills: [skill], p_level: 2, p_error_code: code });
@@ -1988,6 +2083,7 @@ async function boot() {
   S.mHist = S.mHist || {}; S.mHist[todayStr()] = Object.assign({}, S.mastery); // photo du jour pour les flèches ▲ ▼ du parent
   Object.keys(S.mHist).sort().slice(0, -15).forEach((k) => delete S.mHist[k]);
   mergeCopies();
+  applyReglages();
   saveState(); flush();
   notifySession();
   route();

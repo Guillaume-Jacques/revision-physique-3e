@@ -297,3 +297,21 @@ td.tact { text-align: right; vertical-align: top; width: 1%; white-space: nowrap
 .more:active { background: var(--accent-soft); }
 .btn.bad { background: var(--bad); box-shadow: 0 4px 0 #9b2a23; }
 .pending { border: 2px dashed var(--accent-2); }
+
+/* ---------- Chimie (30/10) : matières, écriture scientifique, noyaux ---------- */
+.subjs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 0; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow); }
+.subj { min-height: 44px; border-radius: 999px; background: none; color: var(--muted); font-weight: 800; font-size: 1em; }
+.subj.on { background: var(--accent); color: #fff; }
+.acts.subj-chimie #ctrlAct, .acts.subj-physique #ctrlKAct { display: none; }
+.answer .pm { flex: none; min-width: 48px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-weight: 900; font-size: 1.2em; }
+.answer.sci { align-items: center; flex-wrap: nowrap; }
+.answer.sci > input { flex: 1 1 40%; }
+.answer.sci .x10 { font-weight: 900; font-size: 1.2em; white-space: nowrap; }
+.answer.sci .expw { display: flex; gap: 4px; align-self: flex-start; margin-top: -10px; flex: 0 1 38%; min-width: 0; }
+.answer.sci .expw input { width: 100%; min-width: 0; font-size: 1em; padding: 8px 8px; }
+.answer.sci .expw .pm { min-width: 36px; font-size: 1em; }
+.answer.sci .unit { padding: 0 10px; align-self: stretch; }
+.nuc { display: inline-flex; align-items: center; font-weight: 800; white-space: nowrap; }
+.nuc .nz { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1; font-size: .62em; margin-right: 1px; }
+.nuc .nz sup, .nuc .nz sub { vertical-align: baseline; position: static; font-size: 1em; }
+#calcm .btn.on { border-color: var(--accent); color: var(--accent); }

@@ -231,3 +231,28 @@ input[type=date], #exlabel, #cplabel, select { width: 100%; font: inherit; paddi
 .mt td { vertical-align: middle; }
 .up { color: var(--good); font-weight: 900; } .down { color: var(--bad); font-weight: 900; } .eq { color: var(--muted); }
 .tip { background: var(--accent-soft); border-radius: 14px; padding: 10px 12px; font-size: .9em; }
+
+/* ---------- Accueil, inscription, espace parent multi-familles ---------- */
+.brand .logo { margin-top: 32px; }
+.btn.big { min-height: 62px; font-size: 1.1em; }
+.how h3 { margin-bottom: 2px; }
+.howstep { display: flex; gap: 12px; align-items: flex-start; }
+.howstep span { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 900; display: grid; place-items: center; }
+.howstep p { margin: 2px 0 0; font-size: .95em; }
+.tip.warn { background: var(--warn-soft); color: var(--ink); margin-top: 10px; }
+.legal { margin-top: 18px; }
+.legal a, .consent a { color: var(--accent); }
+.pick { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.pick b { flex: 1; font-size: 1.1em; }
+.consent { align-items: flex-start; line-height: 1.4; }
+.consent input { margin-top: 3px; flex: none; }
+.radio { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.radio:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.radio input { margin-top: 4px; flex: none; accent-color: var(--accent); }
+.codebox { background: var(--accent-soft); border-radius: 14px; padding: 12px; text-align: center; }
+.bigcode { font-size: 2em; font-weight: 900; letter-spacing: 8px; color: var(--accent); margin: 6px 0; }
+.mono { letter-spacing: 2px; }
+.danger { color: var(--bad) !important; }
+details.card > summary { cursor: pointer; list-style-position: inside; }
+details.card[open] > summary { margin-bottom: 4px; }
+.access table td { padding: 6px 0; }

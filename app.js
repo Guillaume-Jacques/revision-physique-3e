@@ -25,8 +25,64 @@ async function rpc(fn, args) {
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
+const APP_NAME = 'Révisions physique';
+const APP_TAG = 'La physique de 3e, une séance après l’autre.';
+const MAIL_FN = `${CFG.url}/functions/v1/rv-mail`;
+async function mailFn(body) {
+  const r = await fetch(MAIL_FN, { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return r.json();
+}
+/* Profils enregistrés sur cet appareil (un parent, un ou plusieurs enfants) */
+let ACCTS = LS.get('rv_accts', null);
+if (!ACCTS) {
+  ACCTS = [];
+  const t = LS.get('rv_token', null), r = LS.get('rv_role', null);
+  if (t) {
+    ACCTS.push({ token: t, role: r, name: r === 'parent' ? 'Espace parent' : 'Élève', pin: false });
+    const k = t.slice(0, 8);
+    if (LS.get('rv_state', null)) { LS.set('rv_state_' + k, LS.get('rv_state', null)); LS.del('rv_state'); }
+    if (LS.get('rv_queue', null)) { LS.set('rv_queue_' + k, LS.get('rv_queue', null)); LS.del('rv_queue'); }
+  }
+  LS.set('rv_accts', ACCTS);
+}
 let token = LS.get('rv_token', null);
 let role = LS.get('rv_role', null);
+if (token && !ACCTS.find((a) => a.token === token)) { token = null; role = null; }
+const kState = () => 'rv_state_' + (token || '').slice(0, 8);
+const kQueue = () => 'rv_queue_' + (token || '').slice(0, 8);
+const kAct = () => 'rv_act_' + (token || '').slice(0, 8);
+const curAcct = () => ACCTS.find((a) => a.token === token) || {};
+function saveAccts() { LS.set('rv_accts', ACCTS); }
+function useAcct(a) {
+  token = a.token; role = a.role; LS.set('rv_token', token); LS.set('rv_role', role);
+  queue = LS.get(kQueue(), []); S = null; PLAN = [];
+}
+function addAcct(a) {
+  ACCTS = ACCTS.filter((x) => x.token !== a.token);
+  ACCTS.push(a); saveAccts(); useAcct(a); UNLOCKED = true; boot();
+}
+let UNLOCKED = false; // sur un appareil à plusieurs profils, choix du profil (et code de l'enfant) à chaque ouverture
+function deviceLabel() {
+  const u = navigator.userAgent || '';
+  if (/iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone/.test(u)) return 'iPhone';
+  if (/Android/.test(u)) return /Mobile/.test(u) ? 'Téléphone Android' : 'Tablette Android';
+  if (/CrOS/.test(u)) return 'Chromebook';
+  if (/Macintosh/.test(u)) return 'Mac';
+  if (/Windows/.test(u)) return 'PC Windows';
+  if (/Linux/.test(u)) return 'Ordinateur Linux';
+  return 'Appareil';
+}
+/* E-mail au parent quand l'enfant commence une séance (après 30 min sans activité) */
+function touchAct() { if (token && role === 'student') LS.set(kAct(), Date.now()); }
+function notifySession() {
+  if (PREVIEW || role !== 'student' || !token) return;
+  const last = LS.get(kAct(), 0);
+  touchAct();
+  if (Date.now() - last < 30 * 60000) return;
+  mailFn({ action: 'session', token }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S && !PREVIEW) notifySession(); });
 let S = null; // état élève
 let PREVIEW = false; // le parent regarde l'appli comme l'élève (rien n'est enregistré)
 let saveTimer = null;
@@ -82,17 +138,17 @@ function itemFromReview(r) {
 }
 function saveState() {
   if (PREVIEW) return;
-  LS.set('rv_state', S);
+  LS.set(kState(), S);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try { const r = await rpc('rv_save_state', { p_token: token, p_state: S }); if (r.error === 'auth') logout(true); } catch (e) { /* hors ligne : on réessaiera */ }
   }, 700);
 }
-let queue = LS.get('rv_queue', []);
+let queue = token ? LS.get(kQueue(), []) : [];
 async function logAttempt(a) {
   if (PREVIEW) return;
   queue.push(Object.assign({ ts: new Date().toISOString() }, a));
-  LS.set('rv_queue', queue);
+  LS.set(kQueue(), queue); touchAct();
   flush();
 }
 let flushing = false;
@@ -102,7 +158,7 @@ async function flush() {
   try {
     const batch = queue.slice(0, 40);
     const r = await rpc('rv_log', { p_token: token, p_items: batch });
-    if (r.ok) { queue = queue.slice(batch.length); LS.set('rv_queue', queue); }
+    if (r.ok) { queue = queue.slice(batch.length); LS.set(kQueue(), queue); }
   } catch (e) {} finally { flushing = false; }
 }
 window.addEventListener('online', flush);
@@ -213,15 +269,194 @@ function render(html) {
 }
 function exitPreview() { stopTimer(); PREVIEW = false; RUN = null; S = null; PLAN = []; screenParent(); }
 
+/* ---------- Accueil : élève ou parent ---------- */
+function brandHead(sub) {
+  return `<div class="brand"><div class="logo">⚡</div><h1 class="center">${APP_NAME}</h1>${sub ? `<p class="center muted">${sub}</p>` : ''}</div>`;
+}
+const legal = () => `<p class="center small muted legal"><a href="confidentialite.html">Confidentialité et mentions légales</a></p>`;
+function screenLanding(msg) {
+  render(`
+    ${brandHead(APP_TAG)}
+    ${msg ? `<div class="tip warn">${msg}</div>` : ''}
+    <div class="stack" style="margin:18px 0">
+      <button class="btn big" id="lStu">🎒 Je suis élève</button>
+      <button class="btn big ghost" id="lPar">👪 Je suis parent</button>
+    </div>
+    <div class="card stack how">
+      <h3>Comment ça marche ?</h3>
+      <div class="howstep"><span>1</span><p><b>Le parent crée son espace</b> avec son adresse e-mail. Pas de mot de passe : il reçoit un lien.</p></div>
+      <div class="howstep"><span>2</span><p><b>Il ajoute son enfant</b> et lui envoie son lien d’accès par message. L’enfant l’ouvre une fois, c’est tout.</p></div>
+      <div class="howstep"><span>3</span><p><b>L’enfant révise 10 minutes par jour</b> : cours, exercices, contrôles blancs. Le parent suit ses progrès et reçoit un e-mail à chaque séance s’il le souhaite.</p></div>
+    </div>
+    ${ACCTS.length ? '<div class="center"><button class="link" id="lBack">← Revenir aux profils de cet appareil</button></div>' : ''}
+    ${legal()}`);
+  document.getElementById('lStu').onclick = () => screenStudentJoin();
+  document.getElementById('lPar').onclick = () => screenParentLogin();
+  const bk = document.getElementById('lBack'); if (bk) bk.onclick = screenPicker;
+}
+function screenStudentJoin(err) {
+  render(`
+    ${brandHead('')}
+    <div class="card stack">
+      <h2>Pour commencer</h2>
+      <p>Demande à ton parent ton <b>lien d’accès</b>. Ouvre-le une seule fois sur cet appareil : ensuite l’appli s’ouvrira directement sur ton profil.</p>
+    </div>
+    <div class="card stack">
+      <h3>Sur un ordinateur ?</h3>
+      <p class="small muted" style="margin:0">Tape le code de 6 lettres que ton parent t’affiche (il est valable 10 minutes).</p>
+      <div class="answer"><input id="jcode" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="Ex. : KPRTWZ" style="text-transform:uppercase;letter-spacing:4px;font-weight:800"></div>
+      <p class="small" id="jmsg" style="color:var(--bad);font-weight:700;margin:0;min-height:1.2em">${err || ''}</p>
+      <button class="btn" id="jgo">Valider</button>
+    </div>
+    <div class="center stack" style="gap:6px">
+      <button class="link" id="jold">J’ai un ancien code à 6 chiffres</button>
+      <button class="link" id="jback">← Retour</button>
+    </div>`);
+  const go = async () => {
+    const c = document.getElementById('jcode').value.replace(/\s/g, '').toUpperCase();
+    const m = document.getElementById('jmsg');
+    if (c.length !== 6) { m.textContent = 'Le code fait 6 lettres.'; return; }
+    m.style.color = 'var(--muted)'; m.textContent = 'Vérification…';
+    try {
+      const r = await rpc('rv_join_code', { p_code: c, p_label: deviceLabel() });
+      if (r.token) return addAcct({ token: r.token, role: 'student', name: r.name, pin: !!r.pin });
+      m.style.color = 'var(--bad)';
+      m.textContent = r.error === 'locked' ? 'Trop d’essais. Réessaie dans 15 minutes.' : 'Code inconnu ou expiré. Demande un nouveau code à ton parent.';
+    } catch (e) { m.style.color = 'var(--bad)'; m.textContent = 'Pas de connexion internet.'; }
+  };
+  document.getElementById('jgo').onclick = go;
+  document.getElementById('jcode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  document.getElementById('jold').onclick = () => screenLogin();
+  document.getElementById('jback').onclick = () => screenLanding();
+}
+function screenParentLogin(st) {
+  st = st || {};
+  render(`
+    ${brandHead('')}
+    <div class="card stack">
+      <h2>Espace parent</h2>
+      <p class="small muted" style="margin:0">Pas de mot de passe : tu reçois un lien de connexion par e-mail.</p>
+      <label class="small" for="pmail"><b>Ton adresse e-mail</b></label>
+      <div class="answer"><input id="pmail" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="prenom@exemple.fr" value="${esc(st.email || '')}"></div>
+      <div id="pinv" ${st.invite ? '' : 'hidden'} class="stack">
+        <div class="tip">L’appli est ouverte <b>sur invitation</b> pour l’instant. Tape le code reçu de la personne qui t’a invité.</div>
+        <label class="small" for="pcode"><b>Code d’invitation</b></label>
+        <div class="answer"><input id="pcode" maxlength="12" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:2px" value="${esc(st.code || '')}"></div>
+        <label class="ck consent"><input type="checkbox" id="pok"> <span>Je suis le parent ou le responsable légal de l’enfant. J’accepte que ses réponses et ses progrès soient enregistrés pour le suivi de ses révisions, comme expliqué dans la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</span></label>
+      </div>
+      <p class="small" id="pmsg" style="color:var(--bad);font-weight:700;margin:0;min-height:1.2em">${st.err || ''}</p>
+      <button class="btn" id="pgo">Recevoir mon lien</button>
+    </div>
+    <div class="center"><button class="link" id="pback">← Retour</button></div>
+    ${legal()}`);
+  const msg = (t, ok) => { const m = document.getElementById('pmsg'); m.style.color = ok ? 'var(--muted)' : 'var(--bad)'; m.textContent = t; };
+  const go = async () => {
+    const email = document.getElementById('pmail').value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('Vérifie ton adresse e-mail.');
+    const inv = !document.getElementById('pinv').hidden;
+    const code = inv ? document.getElementById('pcode').value.trim() : '';
+    const consent = inv ? document.getElementById('pok').checked : false;
+    if (inv && !code) return msg('Tape ton code d’invitation.');
+    if (inv && !consent) return msg('Coche la case pour accepter.');
+    const b = document.getElementById('pgo'); b.disabled = true; msg('Envoi en cours…', true);
+    try {
+      const r = await mailFn({ action: 'magic', email, invite: code || null, consent });
+      b.disabled = false;
+      if (r.ok) return screenMailSent(email);
+      if (r.error === 'need_invite') { document.getElementById('pinv').hidden = false; return msg('Première visite ? Il faut un code d’invitation.', true); }
+      msg({ email: 'Vérifie ton adresse e-mail.', bad_invite: 'Ce code d’invitation n’est pas valable (déjà utilisé ou expiré).', consent: 'Coche la case pour accepter.',
+        wait: 'Trop de demandes. Réessaie dans une heure ou regarde ta boîte mail.' }[r.error] || 'Impossible d’envoyer l’e-mail pour l’instant. Réessaie plus tard.');
+    } catch (e) { b.disabled = false; msg('Pas de connexion internet.'); }
+  };
+  document.getElementById('pgo').onclick = go;
+  document.getElementById('pmail').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  document.getElementById('pback').onclick = () => screenLanding();
+}
+function screenMailSent(email) {
+  render(`
+    ${brandHead('')}
+    <div class="card stack center">
+      <div style="font-size:48px">📬</div>
+      <h2>Regarde ta boîte mail</h2>
+      <p>Un lien de connexion vient de partir vers <b>${esc(email)}</b>. Touche-le sur cet appareil : il fonctionne 30 minutes.</p>
+      <p class="small muted">Rien reçu après 2 minutes ? Regarde dans les courriers indésirables.</p>
+      <button class="btn ghost" id="mback">Changer d’adresse ou renvoyer</button>
+    </div>`);
+  document.getElementById('mback').onclick = () => screenParentLogin({ email });
+}
+/* Liens reçus : #m= (connexion du parent) ou #j= (appareil de l'enfant) */
+async function handleLink(h) {
+  render('<p class="center muted" style="margin-top:40px">Connexion…</p>');
+  const [k, v] = [h.slice(1, 2), h.slice(3)];
+  try {
+    if (k === 'm') {
+      const r = await rpc('rv_magic_use', { p_token: v, p_label: deviceLabel() });
+      if (r.token) return addAcct({ token: r.token, role: 'parent', name: 'Espace parent', pin: false });
+      return screenParentLogin({ err: { old_link: 'Ce lien a expiré. Demande-en un nouveau ci-dessous.', used_link: 'Ce lien a déjà servi. Demande-en un nouveau ci-dessous.' }[r.error] || 'Ce lien ne fonctionne pas. Demande-en un nouveau ci-dessous.' });
+    }
+    const r = await rpc('rv_join', { p_secret: v, p_label: deviceLabel() });
+    if (r.token) {
+      const dup = ACCTS.find((a) => a.role === 'student' && a.name === r.name);
+      if (dup) ACCTS = ACCTS.filter((a) => a !== dup);
+      return addAcct({ token: r.token, role: 'student', name: r.name, pin: !!r.pin });
+    }
+    return screenStudentJoin('Ce lien ne fonctionne plus. Demande un nouveau lien à ton parent.');
+  } catch (e) { render('<p class="center" style="margin-top:40px">Pas de connexion internet.</p><button class="btn" id="rt">Réessayer</button>'); document.getElementById('rt').onclick = () => handleLink(h); }
+}
+/* Plusieurs profils sur le même appareil */
+function screenPicker() {
+  render(`
+    ${brandHead('Qui se connecte ?')}
+    <div class="stack" style="margin-top:16px">${ACCTS.map((a, i) => `
+      <button class="pick" data-i="${i}"><span class="avatar">${a.role === 'parent' ? '👪' : esc((a.name || '?')[0].toUpperCase())}</span><b>${esc(a.role === 'parent' ? 'Espace parent' : a.name)}</b>${a.role !== 'parent' && a.pin ? '<span class="small muted">🔒</span>' : ''}</button>`).join('')}
+    </div>
+    <div class="center" style="margin-top:14px"><button class="link" id="padd">+ Ajouter un profil sur cet appareil</button></div>`);
+  $app.querySelectorAll('.pick').forEach((b) => b.onclick = () => {
+    const a = ACCTS[+b.dataset.i];
+    if (a.role !== 'parent' && a.pin) return screenUnlock(a);
+    useAcct(a); UNLOCKED = true; boot();
+  });
+  document.getElementById('padd').onclick = () => screenLanding();
+}
+function screenUnlock(a, err) {
+  let pin = '';
+  render(`
+    <div class="logo">${esc((a.name || '?')[0].toUpperCase())}</div>
+    <h1 class="center">${esc(a.name)}</h1>
+    <p class="center muted">Tape ton code à 4 chiffres</p>
+    <div class="pin-dots" id="dots">${'<span></span>'.repeat(4)}</div>
+    <p class="center" id="pinmsg" style="min-height:1.5em;color:var(--bad);font-weight:700">${err || ''}</p>
+    <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-n="${n}">${n}</button>`).join('')}<span></span><button data-n="0">0</button><button data-n="del" aria-label="Effacer">⌫</button></div>
+    <div class="center"><button class="link" id="ub">← Changer de profil</button></div>`);
+  document.getElementById('ub').onclick = screenPicker;
+  const dots = () => document.querySelectorAll('#dots span').forEach((d, i) => d.classList.toggle('on', i < pin.length));
+  $app.querySelectorAll('.pad button').forEach((b) => b.onclick = async () => {
+    const n = b.dataset.n;
+    if (n === 'del') pin = pin.slice(0, -1); else if (pin.length < 4) pin += n;
+    dots();
+    if (pin.length === 4) {
+      try {
+        const r = await rpc('rv_unlock', { p_token: a.token, p_pin: pin });
+        if (r.ok) { useAcct(a); UNLOCKED = true; return boot(); }
+        if (r.error === 'auth') { ACCTS = ACCTS.filter((x) => x !== a); saveAccts(); return ACCTS.length ? screenPicker() : screenLanding('Ce profil n’est plus actif sur cet appareil.'); }
+        pin = ''; dots();
+        document.getElementById('pinmsg').textContent = r.error === 'locked' ? 'Trop d’essais. Réessaie dans 15 minutes.' : 'Code incorrect, réessaie.';
+      } catch (e) { pin = ''; dots(); document.getElementById('pinmsg').textContent = 'Pas de connexion internet.'; }
+    }
+  });
+}
+/* Ancien code à 6 chiffres (profils créés avant les familles) */
 function screenLogin(err) {
   let pin = '';
   render(`
     <div class="logo">⚡</div>
-    <h1 class="center">Révisions physique</h1>
+    <h1 class="center">${APP_NAME}</h1>
     <p class="center muted">Tape ton code à 6 chiffres</p>
     <div class="pin-dots" id="dots">${'<span></span>'.repeat(6)}</div>
     <p class="center" id="pinmsg" style="min-height:1.5em;color:var(--bad);font-weight:700">${err || ''}</p>
-    <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-n="${n}">${n}</button>`).join('')}<span></span><button data-n="0">0</button><button data-n="del" aria-label="Effacer">⌫</button></div>`);
+    <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-n="${n}">${n}</button>`).join('')}<span></span><button data-n="0">0</button><button data-n="del" aria-label="Effacer">⌫</button></div>
+    <div class="center"><button class="link" id="lb">← Retour</button></div>`);
+  document.getElementById('lb').onclick = () => screenLanding();
   const dots = () => document.querySelectorAll('#dots span').forEach((d, i) => d.classList.toggle('on', i < pin.length));
   $app.querySelectorAll('.pad button').forEach((b) => b.onclick = async () => {
     const n = b.dataset.n;
@@ -231,21 +466,24 @@ function screenLogin(err) {
       document.getElementById('pinmsg').textContent = 'Vérification…';
       try {
         const r = await rpc('rv_login', { p_pin: pin });
-        if (r.token) { token = r.token; role = r.role; LS.set('rv_token', token); LS.set('rv_role', role); boot(); }
-        else {
-          pin = ''; dots();
-          document.getElementById('dots').classList.add('shake'); setTimeout(() => document.getElementById('dots').classList.remove('shake'), 400);
-          document.getElementById('pinmsg').textContent = r.error === 'locked' ? 'Trop d’essais. Réessaie dans 15 minutes.' : 'Code incorrect, réessaie.';
-        }
+        if (r.token) return addAcct({ token: r.token, role: r.role, name: r.role === 'parent' ? 'Espace parent' : 'Élève', pin: false });
+        pin = ''; dots();
+        document.getElementById('dots').classList.add('shake'); setTimeout(() => document.getElementById('dots').classList.remove('shake'), 400);
+        document.getElementById('pinmsg').textContent = r.error === 'locked' ? 'Trop d’essais. Réessaie dans 15 minutes.' : 'Code incorrect, réessaie.';
       } catch (e) { pin = ''; dots(); document.getElementById('pinmsg').textContent = 'Pas de connexion internet.'; }
     }
   });
 }
 
+/* Retirer le profil courant de cet appareil */
 function logout(expired) {
-  LS.del('rv_token'); LS.del('rv_role'); LS.del('rv_state'); token = null; role = null; S = null;
-  screenLogin(expired ? 'Reconnecte-toi avec ton code.' : '');
+  LS.del(kState()); LS.del(kQueue()); LS.del(kAct());
+  ACCTS = ACCTS.filter((a) => a.token !== token); saveAccts();
+  LS.del('rv_token'); LS.del('rv_role'); token = null; role = null; S = null; queue = [];
+  if (ACCTS.length) return screenPicker();
+  screenLanding(expired ? 'Ta connexion a expiré : reconnecte-toi.' : '');
 }
+function switchProfile() { stopTimer(); LS.del('rv_token'); LS.del('rv_role'); token = null; role = null; S = null; UNLOCKED = false; screenPicker(); }
 
 function screenPseudo() {
   render(`
@@ -253,7 +491,7 @@ function screenPseudo() {
     <h1 class="center">Bienvenue !</h1>
     <p class="center muted">Comment veux-tu qu’on t’appelle ?</p>
     <div class="card stack">
-      <div class="answer"><input id="ps" maxlength="20" placeholder="Ton prénom ou un pseudo" autocomplete="off"></div>
+      <div class="answer"><input id="ps" maxlength="20" placeholder="Ton prénom ou un pseudo" autocomplete="off" value="${esc(curAcct().role === 'student' && curAcct().name !== 'Élève' ? curAcct().name : '')}"></div>
       <button class="btn" id="go">C’est moi</button>
     </div>`);
   const go = () => { const v = document.getElementById('ps').value.trim(); if (!v) return; S.pseudo = v.slice(0, 20); saveState(); route(); };
@@ -372,7 +610,8 @@ function openSettings() {
     <h2>Réglages</h2>
     <button class="btn ghost" id="sAa">${S.large ? '🔤 Texte normal' : '🔠 Texte plus grand'}</button>
     ${isStandalone() ? '' : '<button class="btn ghost" id="sInst">📲 Mettre l’appli sur mon téléphone</button><p class="small muted" id="sHow" hidden></p>'}
-    <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Se déconnecter'}</button>
+    ${PREVIEW ? '' : `${ACCTS.length > 1 ? '<button class="btn ghost" id="sSw">👥 Changer de profil</button>' : ''}<button class="btn ghost" id="sAdd">➕ Ajouter un profil sur cet appareil</button>`}
+    <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Retirer mon profil de cet appareil'}</button>
     <button class="link" id="sClose">Fermer</button></div></div>`);
   const close = () => { const m = document.getElementById('qmodal'); if (m) m.remove(); };
   document.getElementById('qmodal').onclick = (e) => { if (e.target.id === 'qmodal') close(); };
@@ -380,7 +619,9 @@ function openSettings() {
   document.getElementById('sAa').onclick = () => { S.large = !S.large; document.body.classList.toggle('large', S.large); saveState(); close(); screenHome(); };
   const si = document.getElementById('sInst');
   if (si) si.onclick = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; close(); return; } const h = document.getElementById('sHow'); h.innerHTML = installHow(); h.hidden = false; };
-  document.getElementById('sOut').onclick = () => { close(); PREVIEW ? exitPreview() : logout(); };
+  const sw = document.getElementById('sSw'); if (sw) sw.onclick = () => { close(); switchProfile(); };
+  const sa = document.getElementById('sAdd'); if (sa) sa.onclick = () => { close(); stopTimer(); screenLanding(); };
+  document.getElementById('sOut').onclick = () => { if (PREVIEW) { close(); return exitPreview(); } if (!confirm('Retirer ton profil de cet appareil ? Tes progrès restent enregistrés ; il faudra un nouveau lien de ton parent pour revenir.')) return; close(); logout(); };
 }
 const activeCards = () => S.cards.filter((k) => skillActive(k)).length;
 function screenHome() {
@@ -1296,10 +1537,12 @@ async function screenParent() {
   if (data.error) return logout(true);
   const fmtDate = (d) => d ? new Date(d).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais';
   const studs = data.students || [];
+  FAM = data.family || {}; INVITES = data.invites || [];
   PLAN = data.plan || [];
   const planOk = Array.isArray(data.plan);
   render(`
     <div class="row between" style="margin-bottom:12px"><h1>Tableau de bord</h1><button class="btn small ghost" id="ref">Actualiser</button></div>
+    ${studs.length ? '' : welcomeCard()}
     ${studs.map((st, si) => {
       const s = Object.assign(defaultState(), st.state || {});
       s.mastery = Object.assign(defaultState().mastery, s.mastery);
@@ -1312,7 +1555,8 @@ async function screenParent() {
       const open = SKILLS.filter((k) => isOpen(s, k)), closed = SKILLS.length - open.length;
       return `
       <div class="row between" style="margin:6px 4px 10px"><h2>${esc(name)}</h2><span class="small muted">Dernière activité : ${fmtDate(t.last)}</span></div>
-      ${weekCard(s, st)}
+      ${(st.devices || []).length ? weekCard(s, st) : ''}
+      ${accessCard(st, s)}
       ${si === 0 ? planCard(planOk) : ''}
       <div class="card stack">
         <div class="kpis">
@@ -1339,10 +1583,17 @@ async function screenParent() {
         <details><summary><b>Derniers exercices</b></summary>
           <table style="margin-top:6px">${(st.recent || []).map((r) => `<tr><td>${r.correct ? '✅' : '❌'}</td><td><span class="small muted">${fmtDate(r.ts)} • ${esc(RUN_LABEL[r.mode] || r.mode)}</span><br>${esc((r.question || '').slice(0, 140))}<br><span class="small">Réponse : <b>${esc(r.answer)}</b>${r.conf ? ` • ${esc({ sure: 'sûre', hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne sait pas' }[r.conf] || r.conf)}` : ''}${r.error_code ? ` • ${esc(ERR_LABELS[r.error_code] || r.error_code)}` : ''}${r.hints ? ` • ${r.hints} indice(s)` : ''}</span></td></tr>`).join('')}</table>
         </details>
-      </div>`; }).join('') || '<p>Aucun profil élève.</p>' + planCard(planOk)}
-    <div class="center"><button class="link" id="out">Se déconnecter</button></div>`);
+      </div>`; }).join('')}
+    ${familyCard(studs)}
+    <div class="center stack" style="gap:6px">
+      ${ACCTS.length > 1 ? '<button class="link" id="psw">👥 Changer de profil</button>' : ''}
+      <button class="link" id="out">Me déconnecter de cet appareil</button>
+    </div>
+    ${legal()}`);
   document.getElementById('ref').onclick = screenParent;
-  document.getElementById('out').onclick = () => logout();
+  document.getElementById('out').onclick = () => { if (confirm('Te déconnecter de cet appareil ? Tu pourras revenir avec un nouveau lien reçu par e-mail.')) logout(); };
+  const psw = document.getElementById('psw'); if (psw) psw.onclick = switchProfile;
+  bindParentExtras(studs);
   $app.querySelectorAll('[data-pv]').forEach((b) => b.onclick = () => {
     const st = studs[+b.dataset.pv];
     S = Object.assign(defaultState(), JSON.parse(JSON.stringify(st.state || {})));
@@ -1352,6 +1603,135 @@ async function screenParent() {
     route();
   });
   bindPlanCard();
+}
+/* ---------- Espace parent : enfants, appareils, e-mails, invitations ---------- */
+let FAM = {}, INVITES = [];
+const childUrl = (sec) => `${location.origin}${location.pathname}#j=${sec}`;
+const fmtDay = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function addChildForm(first) {
+  return `<div class="stack" style="margin-top:8px">
+    <label class="small" for="cname"><b>Prénom de ${first ? 'ton enfant' : 'l’enfant'}</b></label>
+    <div class="answer"><input id="cname" maxlength="30" placeholder="Prénom ou surnom" autocomplete="off"></div>
+    <label class="small" for="cpin"><b>Code à 4 chiffres</b> <span class="muted">(facultatif)</span></label>
+    <div class="answer"><input id="cpin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Ex. : 2580" autocomplete="off"></div>
+    <p class="small muted" style="margin:0">Le code n’est demandé que sur un appareil partagé (tablette familiale, frère ou sœur). Sur son propre téléphone, ton enfant n’a rien à taper.</p>
+    <button class="btn" id="cadd">Ajouter</button></div>`;
+}
+function welcomeCard() {
+  return `<div class="card stack">
+    <h2>👋 Bienvenue !</h2>
+    <p>Première étape : ajoute ton enfant. Tu pourras ensuite lui envoyer son lien d’accès par message.</p>
+    ${addChildForm(true)}</div>`;
+}
+function accessCard(st, s) {
+  const dev = st.devices || [], name = s.pseudo || st.label;
+  return `<details class="card stack access" ${dev.length ? '' : 'open'}>
+    <summary><b>📱 Accès de ${esc(name)}</b> <span class="small muted">${dev.length ? `${dev.length} appareil${dev.length > 1 ? 's' : ''}` : 'aucun appareil pour l’instant'}</span></summary>
+    ${dev.length ? '' : `<div class="tip">Envoie-lui son lien : il ou elle l’ouvre <b>une fois</b> sur son téléphone, sa tablette ou son ordinateur, et l’appli s’ouvrira ensuite directement.</div>`}
+    <button class="btn" data-share="${st.id}" data-name="${esc(name)}">📲 Envoyer le lien à ${esc(name)}</button>
+    <button class="btn ghost" data-code="${st.id}">💻 Afficher un code pour un ordinateur</button>
+    <div class="codebox" id="code-${st.id}" hidden></div>
+    ${dev.length ? `<table>${dev.map((d) => `<tr><td>${esc(d.label || 'Appareil')}<br><span class="small muted">Dernière utilisation : ${fmtDay(d.last)}</span></td><td style="text-align:right"><button class="link" data-dev="${d.id}" data-what="${esc(d.label || 'cet appareil')}">Retirer</button></td></tr>`).join('')}</table>` : ''}
+    <details><summary class="small"><b>Autres réglages</b></summary><div class="stack" style="margin-top:8px">
+      <p class="small muted" style="margin:0">Code à 4 chiffres : ${st.has_pin ? 'activé' : 'aucun'} (demandé seulement sur un appareil partagé).</p>
+      <div class="row"><div class="answer grow"><input data-pinin="${st.id}" maxlength="4" inputmode="numeric" placeholder="Nouveau code" autocomplete="off"></div><button class="btn small ghost" data-pinset="${st.id}">Enregistrer</button></div>
+      <button class="btn small ghost" data-renew="${st.id}" data-name="${esc(name)}">🔄 Créer un nouveau lien (l’ancien ne marchera plus)</button>
+      <button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}">Supprimer le profil de ${esc(name)} et ses données</button>
+    </div></details>
+  </details>`;
+}
+function familyCard(studs) {
+  const n = FAM.notify || 'each';
+  const opt = (v, t, d) => `<label class="radio"><input type="radio" name="notify" value="${v}" ${n === v ? 'checked' : ''}><span><b>${t}</b><br><span class="small muted">${d}</span></span></label>`;
+  return `<div class="card stack">
+    <h2>✉️ E-mails</h2>
+    <p class="small muted" style="margin:0">Envoyés à ${esc(FAM.email || '')}</p>
+    ${opt('each', 'À chaque séance', 'Un e-mail quand ton enfant commence à réviser (30 min d’écart au minimum).')}
+    ${opt('evening', 'Récap du soir', 'Un seul e-mail vers 21 h, seulement les jours où il a révisé.')}
+    ${opt('off', 'Aucun', 'Tu consultes le tableau de bord quand tu veux.')}
+    <label class="ck"><input type="checkbox" id="fweek" ${FAM.weekly ? 'checked' : ''}> Bilan de la semaine le dimanche soir</label>
+  </div>
+  ${studs.length ? `<details class="card stack"><summary><b>➕ Ajouter un autre enfant</b></summary>${addChildForm(false)}</details>` : ''}
+  ${FAM.admin ? `<div class="card stack">
+    <h2>🎟️ Inviter un parent</h2>
+    <p class="small muted" style="margin:0">Chaque code permet à une famille de créer son espace (valable 60 jours, une seule fois).</p>
+    <div class="row"><div class="answer grow"><input id="invnote" maxlength="60" placeholder="Pour qui ? (ex. : Sophie, maman de Léo)"></div><button class="btn small" id="invadd">Créer</button></div>
+    ${INVITES.length ? `<table>${INVITES.slice(0, 12).map((i) => `<tr><td><b class="mono">${esc(i.code)}</b>${i.note ? ` • ${esc(i.note)}` : ''}<br><span class="small muted">${i.used ? '✅ utilisé' : new Date(i.expires) < new Date() ? 'expiré' : 'en attente'}</span></td><td style="text-align:right">${i.used ? '' : `<button class="link" data-inv="${esc(i.code)}">Envoyer</button>`}</td></tr>`).join('')}</table>` : ''}
+  </div>` : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
+    <p class="small muted" style="margin:0">Supprimer ton compte efface définitivement ton espace, les profils de tes enfants et toutes leurs réponses.</p>
+    <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}`;
+}
+async function shareText(title, text, url) {
+  if (navigator.share) { try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  const full = `${text} ${url}`;
+  try { await navigator.clipboard.writeText(full); toast('Message copié : colle-le dans WhatsApp ou un SMS.'); }
+  catch (e) { prompt('Copie ce message :', full); }
+}
+function bindParentExtras(studs) {
+  const call = async (fn, args, ok) => {
+    try {
+      const r = await rpc(fn, Object.assign({ p_token: token }, args));
+      if (r.error) { toast(r.error === 'auth' ? 'Reconnecte-toi.' : 'Impossible pour l’instant.'); return null; }
+      if (ok) toast(ok); return r;
+    } catch (e) { toast('Pas de connexion internet.'); return null; }
+  };
+  const ca = document.getElementById('cadd');
+  if (ca) ca.onclick = async () => {
+    const name = document.getElementById('cname').value.trim(), pin = document.getElementById('cpin').value.trim();
+    if (!name) return toast('Écris le prénom de ton enfant.');
+    if (pin && !/^\d{4}$/.test(pin)) return toast('Le code doit faire 4 chiffres.');
+    if (await call('rv_child_add', { p_name: name, p_pin: pin || null }, `Profil de ${name} créé ✓`)) screenParent();
+  };
+  $app.querySelectorAll('[data-share]').forEach((b) => b.onclick = async () => {
+    const r = await call('rv_child_link', { p_child: b.dataset.share, p_renew: false }); if (!r) return;
+    shareText(APP_NAME, `${b.dataset.name}, voici ton lien pour réviser la physique. Ouvre-le une fois sur ton téléphone (ou ta tablette) : ensuite l’appli s’ouvrira directement.`, childUrl(r.secret));
+  });
+  $app.querySelectorAll('[data-code]').forEach((b) => b.onclick = async () => {
+    const r = await call('rv_child_code', { p_child: b.dataset.code }); if (!r) return;
+    const box = document.getElementById('code-' + b.dataset.code);
+    box.hidden = false;
+    box.innerHTML = `<p class="small" style="margin:0">Sur l’ordinateur, ouvre <b>${esc(location.host)}</b>, choisis « Je suis élève » puis tape :</p><div class="bigcode">${r.code}</div><p class="small muted" style="margin:0">Valable ${r.minutes} minutes, une seule fois.</p>`;
+  });
+  $app.querySelectorAll('[data-dev]').forEach((b) => b.onclick = async () => {
+    if (!confirm(`Retirer « ${b.dataset.what} » ? Il faudra renvoyer le lien pour l’utiliser à nouveau.`)) return;
+    if (await call('rv_device_del', { p_device: +b.dataset.dev }, 'Appareil retiré')) screenParent();
+  });
+  $app.querySelectorAll('[data-pinset]').forEach((b) => b.onclick = async () => {
+    const v = document.querySelector(`[data-pinin="${b.dataset.pinset}"]`).value.trim();
+    if (!/^\d{4}$/.test(v)) return toast('Le code doit faire 4 chiffres.');
+    if (await call('rv_child_set', { p_child: b.dataset.pinset, p_name: null, p_pin: v }, 'Code enregistré ✓')) screenParent();
+  });
+  $app.querySelectorAll('[data-renew]').forEach((b) => b.onclick = async () => {
+    if (!confirm('Créer un nouveau lien ? L’ancien lien ne fonctionnera plus. Les appareils déjà associés restent connectés (tu peux les retirer un par un).')) return;
+    const r = await call('rv_child_link', { p_child: b.dataset.renew, p_renew: true }, 'Nouveau lien créé'); if (!r) return;
+    shareText(APP_NAME, `${b.dataset.name}, voici ton nouveau lien pour réviser la physique :`, childUrl(r.secret));
+  });
+  $app.querySelectorAll('[data-cdel]').forEach((b) => b.onclick = async () => {
+    if (!confirm(`Supprimer définitivement le profil de ${b.dataset.name}, ses progrès et toutes ses réponses ?`)) return;
+    if (await call('rv_child_del', { p_child: b.dataset.cdel }, 'Profil supprimé')) screenParent();
+  });
+  $app.querySelectorAll('input[name="notify"]').forEach((i) => i.onchange = () => { FAM.notify = i.value; call('rv_family_set', { p_notify: i.value, p_weekly: null }, 'Réglage enregistré ✓'); });
+  const fw = document.getElementById('fweek'); if (fw) fw.onchange = () => { FAM.weekly = fw.checked; call('rv_family_set', { p_notify: null, p_weekly: fw.checked }, 'Réglage enregistré ✓'); };
+  const ia = document.getElementById('invadd');
+  if (ia) ia.onclick = async () => {
+    const r = await call('rv_invite_create', { p_note: document.getElementById('invnote').value.trim() }); if (!r) return;
+    await screenParent();
+    inviteShare(r.code);
+  };
+  $app.querySelectorAll('[data-inv]').forEach((b) => b.onclick = () => inviteShare(b.dataset.inv));
+  const fd = document.getElementById('fdel');
+  if (fd) fd.onclick = async () => {
+    const v = prompt(`Pour confirmer la suppression définitive, tape ton adresse e-mail (${FAM.email}) :`);
+    if (v == null) return;
+    try {
+      const r = await rpc('rv_family_delete', { p_token: token, p_confirm: v });
+      if (r.ok) { alert('Ton compte et toutes les données associées ont été supprimés.'); return logout(); }
+      toast(r.error === 'confirm' ? 'L’adresse ne correspond pas : rien n’a été supprimé.' : 'Impossible pour l’instant.');
+    } catch (e) { toast('Pas de connexion internet.'); }
+  };
+}
+function inviteShare(code) {
+  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique de 3e. Crée ton espace parent (« Je suis parent ») avec ton adresse e-mail et ce code d’invitation : ${code}`, `${location.origin}${location.pathname}`);
 }
 function planCard(ok) {
   const fmt = (d) => d ? d.split('-').reverse().join('/') : '';
@@ -1368,7 +1748,7 @@ function planCard(ok) {
         <button class="btn" id="exadd">Enregistrer le contrôle</button></div>
     </details>
     <h2 style="margin-top:8px">📝 Erreurs relevées sur les copies</h2>
-    <div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée à Claude, qui relève les erreurs pour toi.</div>
+    ${FAM.admin ? '<div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée à Claude, qui relève les erreurs pour toi.</div>' : ''}
     <p class="small muted" style="margin:0">Chaque erreur saisie revient dans « À revoir » dès la prochaine connexion, puis à J+1, J+3, J+7 et J+21.</p>
     ${cp.length ? `<table>${cp.slice(-8).reverse().map((e) => `<tr><td>${esc(e.label || '')}<br><span class="small muted">${esc(ERR_LABELS[e.error_code] || e.error_code || '')}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}" data-what="l’erreur « ${esc(e.label || '')} »">Supprimer</button></td></tr>`).join('')}</table>` : ''}
     <details><summary><b>+ Ajouter une erreur à la main</b></summary>
@@ -1421,20 +1801,26 @@ function mergeCopies() {
   });
 }
 async function boot() {
-  if (!token) return screenLogin();
+  const h = location.hash;
+  if (/^#[mj]=[0-9a-f-]{36}$/i.test(h)) { history.replaceState(null, '', location.pathname); return handleLink(h); }
+  if (!ACCTS.length) return screenLanding();
+  if (!token || (ACCTS.length > 1 && !UNLOCKED)) {
+    if (ACCTS.length === 1) useAcct(ACCTS[0]); else return screenPicker();
+  }
   if (role === 'parent') return screenParent();
-  const cached = LS.get('rv_state', null);
+  const cached = LS.get(kState(), null);
   try {
     const r = await rpc('rv_get_state', { p_token: token });
     if (r.error) return logout(true);
+    if (r.name && curAcct().name !== r.name) { curAcct().name = r.name; saveAccts(); }
     S = Object.assign(defaultState(), cached || {}, r.state || {});
     // garder la version la plus avancée si le cache local est en avance (hors ligne)
     if (cached && (cached.xp || 0) > (r.state.xp || 0)) S = Object.assign(defaultState(), cached);
     S.mastery = Object.assign(defaultState().mastery, S.mastery);
     PLAN = r.plan || [];
-    LS.set('rv_plan', PLAN);
+    LS.set('rv_plan_' + token.slice(0, 8), PLAN);
   } catch (e) {
-    PLAN = LS.get('rv_plan', []);
+    PLAN = LS.get('rv_plan_' + token.slice(0, 8), []);
     if (!cached) { render('<p class="center" style="margin-top:40px">Pas de connexion internet.</p><button class="btn" onclick="boot()">Réessayer</button>'); return; }
     S = Object.assign(defaultState(), cached);
   }
@@ -1445,6 +1831,7 @@ async function boot() {
   Object.keys(S.mHist).sort().slice(0, -15).forEach((k) => delete S.mHist[k]);
   mergeCopies();
   saveState(); flush();
+  notifySession();
   route();
 }
 boot();

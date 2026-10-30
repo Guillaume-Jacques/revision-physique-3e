@@ -1,0 +1,5 @@
+-- 30/10 : inscription parent sans code d'invitation (consentement seul) + rv_admin_stats (tableau de bord admin).
+-- Appliqué via les migrations Supabase « inscription_libre » et « admin_stats ».
+-- rv_magic_create : nouvel e-mail sans consentement -> {error:'need_consent'} ; le code d'invitation est ignoré.
+-- rv_magic_use : crée la famille si consent ; marque l'invitation utilisée si une a été fournie.
+-- rv_admin_stats(p_token) : réservé au parent admin ; compte familles, parents venus 7 j, enfants, actifs, exercices + liste des familles.

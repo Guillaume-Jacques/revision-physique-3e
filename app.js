@@ -403,9 +403,7 @@ function screenParentLogin(st) {
       <label class="small" for="pmail"><b>Ton adresse e-mail</b></label>
       <div class="answer"><input id="pmail" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="prenom@exemple.fr" value="${esc(st.email || '')}"></div>
       <div id="pinv" ${st.invite ? '' : 'hidden'} class="stack">
-        <div class="tip">L’appli est ouverte <b>sur invitation</b> pour l’instant. Tape le code reçu de la personne qui t’a invité.</div>
-        <label class="small" for="pcode"><b>Code d’invitation</b></label>
-        <div class="answer"><input id="pcode" maxlength="12" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:2px" value="${esc(st.code || '')}"></div>
+        <div class="tip">Bienvenue ! C’est ta première connexion : coche la case ci-dessous pour créer ton espace parent.</div>
         <label class="ck consent"><input type="checkbox" id="pok"> <span>Je suis le parent ou le responsable légal de l’enfant. J’accepte que ses réponses et ses progrès soient enregistrés pour le suivi de ses révisions, comme expliqué dans la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</span></label>
       </div>
       <p class="small" id="pmsg" style="color:var(--bad);font-weight:700;margin:0;min-height:1.2em">${st.err || ''}</p>
@@ -418,17 +416,15 @@ function screenParentLogin(st) {
     const email = document.getElementById('pmail').value.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('Vérifie ton adresse e-mail.');
     const inv = !document.getElementById('pinv').hidden;
-    const code = inv ? document.getElementById('pcode').value.trim() : '';
     const consent = inv ? document.getElementById('pok').checked : false;
-    if (inv && !code) return msg('Tape ton code d’invitation.');
-    if (inv && !consent) return msg('Coche la case pour accepter.');
+    if (inv && !consent) return msg('Coche la case pour créer ton espace.');
     const b = document.getElementById('pgo'); b.disabled = true; msg('Envoi en cours…', true);
     try {
-      const r = await mailFn({ action: 'magic', email, invite: code || null, consent });
+      const r = await mailFn({ action: 'magic', email, invite: null, consent });
       b.disabled = false;
       if (r.ok) return screenMailSent(email);
-      if (r.error === 'need_invite') { document.getElementById('pinv').hidden = false; return msg('Première visite ? Il faut un code d’invitation.', true); }
-      msg({ email: 'Vérifie ton adresse e-mail.', bad_invite: 'Ce code d’invitation n’est pas valable (déjà utilisé ou expiré).', consent: 'Coche la case pour accepter.',
+      if (r.error === 'need_consent' || r.error === 'need_invite') { document.getElementById('pinv').hidden = false; return msg('Première visite ? Coche la case puis touche « Recevoir mon code ».', true); }
+      msg({ email: 'Vérifie ton adresse e-mail.', bad_invite: 'Ce code d’invitation n’est pas valable (déjà utilisé ou expiré).', consent: 'Coche la case pour créer ton espace.',
         wait: 'Trop de demandes. Réessaie dans une heure ou regarde ta boîte mail.' }[r.error] || 'Impossible d’envoyer l’e-mail pour l’instant. Réessaie plus tard.');
     } catch (e) { b.disabled = false; msg('Pas de connexion internet.'); }
   };
@@ -1699,19 +1695,53 @@ function drawParent() {
   let body;
   if (!st) body = tab === 'reglages' ? tabReglages(null) : tab === 'controles' ? '<div class="card"><p style="margin:0">Ajoute d’abord ton enfant dans l’onglet <b>Suivi</b>.</p></div>' : welcomeCard();
   else body = tab === 'controles' ? tabControles(st) : tab === 'reglages' ? tabReglages(st) : tabSuivi(st);
+  if (tab === 'admin' && FAM.admin) body = tabAdmin();
   const y = window.scrollY;
   render(`<div class="pz">
     <div class="phead row between"><div class="row" style="gap:8px"><span class="logo-s">⚡</span><b>${APP_NAME}</b></div><span class="small muted">Espace parent</span></div>
     ${studs.length > 1 ? `<div class="kids" role="tablist">${studs.map((s) => `<button role="tab" class="kid ${s === st ? 'on' : ''}" data-kid="${s.id}">${esc(childName(s))}</button>`).join('')}</div>` : ''}
     ${body}
   </div>
-  <nav class="tabbar">${[['suivi', '📊', 'Suivi'], ['controles', '📅', 'Contrôles'], ['reglages', '⚙️', 'Réglages']].map(([k, i, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}</button>`).join('')}</nav>`);
+  <nav class="tabbar">${[['suivi', '📊', 'Suivi'], ['controles', '📅', 'Contrôles'], ['reglages', '⚙️', 'Réglages']].concat(FAM.admin ? [['admin', '📈', 'Appli']] : []).map(([k, i, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}</button>`).join('')}</nav>`);
   window.scrollTo(0, PV.keepY ? y : 0); PV.keepY = false;
   $app.querySelectorAll('[data-kid]').forEach((b) => b.onclick = () => { PV.child = b.dataset.kid; savePV(); drawParent(); });
   $app.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { PV.tab = b.dataset.tab; savePV(); drawParent(); });
   $app.querySelectorAll('[data-rev]').forEach((b) => b.onclick = () => reviewSheet(st));
   $app.querySelectorAll('[data-psj]').forEach((b) => b.onclick = () => { PV.sj = b.dataset.psj || null; PV.keepY = true; savePV(); drawParent(); });
   bindParent(st);
+  if (tab === 'admin' && FAM.admin) loadAdmin();
+}
+/* Mini tableau de bord de l'appli (administrateur seulement) */
+let ADM = null, ADM_AT = 0;
+function tabAdmin() {
+  return `<div class="ptitle"><h1>L’appli en chiffres</h1></div><div id="admbox">${ADM ? admHtml(ADM) : '<p class="center muted">Chargement…</p>'}</div>`;
+}
+function admHtml(a) {
+  const k = (l, v, d) => `<div class="kpi"><span class="small muted">${l}</span><b>${v}</b><span class="small muted">${d}</span></div>`;
+  const d = (t) => t ? new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '—';
+  return `<div class="card stack"><h2>👨‍👩‍👧 Familles</h2><div class="kpis two">
+      ${k('Parents inscrits', a.families, `+${a.families_7} cette semaine`)}
+      ${k('Parents venus (7 j)', a.parents_seen_7, 'ont ouvert leur espace')}
+    </div></div>
+    <div class="card stack"><h2>🎒 Élèves</h2><div class="kpis two">
+      ${k('Enfants créés', a.children, `${a.children_linked} avec l’appli ouverte`)}
+      ${k('Actifs aujourd’hui', a.active_today, 'ont fait au moins 1 exercice')}
+      ${k('Actifs (7 j)', a.active_7, `sur ${a.children} enfant${a.children > 1 ? 's' : ''}`)}
+      ${k('Exercices (7 j)', a.ex_7, `${a.ex_all} depuis le début`)}
+    </div></div>
+    <div class="card stack"><h2>📋 Familles inscrites</h2>
+      ${(a.list || []).length ? `<table>${a.list.map((f) => `<tr><td><b>${esc(f.email)}</b><br><span class="small muted">inscrit le ${d(f.created)} • ${f.kids} enfant${f.kids > 1 ? 's' : ''}</span></td><td class="tact small">${f.ex7} ex. / 7 j<br><span class="muted">dernier : ${d(f.last_ex)}</span></td></tr>`).join('')}</table>` : '<p class="muted small">Aucune famille pour l’instant.</p>'}
+      <p class="small muted" style="margin:0">Visible par toi seul. Le compte « test élève » n’est pas compté.</p>
+    </div>`;
+}
+async function loadAdmin() {
+  if (ADM && Date.now() - ADM_AT < 60000) return;
+  try {
+    const r = await rpc('rv_admin_stats', { p_token: token });
+    if (!r || r.error) return;
+    ADM = r; ADM_AT = Date.now();
+    const box = document.getElementById('admbox'); if (box) box.innerHTML = admHtml(ADM);
+  } catch (e) { const box = document.getElementById('admbox'); if (box && !ADM) box.innerHTML = '<p class="center muted">Pas de connexion internet.</p>'; }
 }
 /* Rechargement automatique au retour sur l'appli (remplace « Actualiser ») */
 document.addEventListener('visibilitychange', () => {
@@ -1970,11 +2000,9 @@ function tabReglages(st) {
   </div>
   ${studs.length ? `<details class="card stack"><summary><b>➕ Ajouter un autre enfant</b></summary>${addChildForm(false)}</details>` : ''}
   ${FAM.admin ? `<div class="card stack">
-    <h2>🎟️ Inviter un parent</h2>
-    <p class="small muted" style="margin:0">Chaque code permet à une famille de créer son espace (valable 60 jours, une seule fois).</p>
-    <input class="field" id="invnote" maxlength="60" placeholder="Pour qui ? (ex. : Sophie, maman de Léo)">
-    <button class="btn" id="invadd">Créer un code d’invitation</button>
-    ${INVITES.length ? `<table>${INVITES.slice(0, 12).map((i) => `<tr><td><b class="mono">${esc(i.code)}</b>${i.note ? ` • ${esc(i.note)}` : ''}<br><span class="small muted">${i.used ? '✅ utilisé' : new Date(i.expires) < new Date() ? 'expiré' : 'en attente'}</span></td><td class="tact">${i.used ? '' : `<button class="link" data-inv="${esc(i.code)}">Envoyer</button>`}</td></tr>`).join('')}</table>` : ''}
+    <h2>📣 Inviter un parent</h2>
+    <p class="small muted" style="margin:0">Envoie le lien de l’appli : le parent crée son espace avec son adresse e-mail, sans code d’invitation.</p>
+    <button class="btn" id="invadd">Partager l’appli</button>
   </div>` : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
     <p class="small muted" style="margin:0">Supprimer ton compte efface définitivement ton espace, les profils de tes enfants et toutes leurs réponses.</p>
     <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}
@@ -1994,7 +2022,7 @@ async function shareText(title, text, url) {
   catch (e) { ask({ title: 'Copie ce message', text: 'Puis colle-le dans WhatsApp ou un SMS.', copy: full, ok: 'Copier', cancel: 'Fermer' }); }
 }
 function inviteShare(code) {
-  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique-chimie de 3e. Crée ton espace parent (« Je suis parent ») avec ton adresse e-mail et ce code d’invitation : ${code}`, `${location.origin}${location.pathname}`);
+  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique-chimie de 3e. Touche « Je suis parent », entre ton adresse e-mail et tape le code que tu reçois par e-mail.`, `${location.origin}${location.pathname}`);
 }
 function bindParent(st) {
   const $ = (id) => document.getElementById(id);
@@ -2061,8 +2089,7 @@ function bindParent(st) {
   $app.querySelectorAll('input[name="notify"]').forEach((i) => i.onchange = () => { FAM.notify = i.value; DASH.family.notify = i.value; call('rv_family_set', { p_notify: i.value, p_weekly: null }, 'Réglage enregistré ✓'); });
   if ($('fweek')) $('fweek').onchange = () => { FAM.weekly = $('fweek').checked; DASH.family.weekly = FAM.weekly; call('rv_family_set', { p_notify: null, p_weekly: FAM.weekly }, 'Réglage enregistré ✓'); };
   if ($('invadd')) $('invadd').onclick = async () => {
-    const r = await call('rv_invite_create', { p_note: $('invnote').value.trim() }); if (!r) return;
-    await reload(); inviteShare(r.code);
+    inviteShare();
   };
   $app.querySelectorAll('[data-inv]').forEach((b) => b.onclick = () => inviteShare(b.dataset.inv));
   if ($('fdel')) $('fdel').onclick = async () => {

@@ -2000,11 +2000,12 @@ function tabReglages(st) {
     <label class="ck"><input type="checkbox" id="fweek" ${FAM.weekly ? 'checked' : ''}> Bilan de la semaine le dimanche soir</label>
   </div>
   ${studs.length ? `<details class="card stack"><summary><b>➕ Ajouter un autre enfant</b></summary>${addChildForm(false)}</details>` : ''}
-  ${FAM.admin ? `<div class="card stack">
-    <h2>📣 Inviter un parent</h2>
-    <p class="small muted" style="margin:0">Envoie le lien de l’appli : le parent crée son espace avec son adresse e-mail, sans code d’invitation.</p>
+  <div class="card stack">
+    <h2>📣 Faire connaître l’appli à d’autres parents</h2>
+    <p class="small muted" style="margin:0">Envoie le lien par WhatsApp, SMS ou e-mail. L’autre parent touche « Je suis parent » et crée son espace avec son adresse e-mail. C’est gratuit, sans code d’invitation.</p>
     <button class="btn" id="invadd">Partager l’appli</button>
-  </div>` : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
+  </div>
+  ${FAM.admin ? '' : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
     <p class="small muted" style="margin:0">Supprimer ton compte efface définitivement ton espace, les profils de tes enfants et toutes leurs réponses.</p>
     <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}
   ${helpCard()}

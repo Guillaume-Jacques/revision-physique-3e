@@ -1585,6 +1585,7 @@ async function screenParent() {
         </details>
       </div>`; }).join('')}
     ${familyCard(studs)}
+    ${helpCard()}
     <div class="center stack" style="gap:6px">
       ${ACCTS.length > 1 ? '<button class="link" id="psw">👥 Changer de profil</button>' : ''}
       <button class="link" id="out">Me déconnecter de cet appareil</button>
@@ -1614,8 +1615,22 @@ function addChildForm(first) {
     <div class="answer"><input id="cname" maxlength="30" placeholder="Prénom ou surnom" autocomplete="off"></div>
     <label class="small" for="cpin"><b>Code à 4 chiffres</b> <span class="muted">(facultatif)</span></label>
     <div class="answer"><input id="cpin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Ex. : 2580" autocomplete="off"></div>
-    <p class="small muted" style="margin:0">Le code n’est demandé que sur un appareil partagé (tablette familiale, frère ou sœur). Sur son propre téléphone, ton enfant n’a rien à taper.</p>
+    <p class="small muted" style="margin:0">Sur son propre téléphone, ton enfant ouvre l’appli sans rien taper. Ce code ne sert que si plusieurs profils sont enregistrés sur le même appareil (tablette familiale…). Détails dans « ❓ Comment ça marche ».</p>
     <button class="btn" id="cadd">Ajouter</button></div>`;
+}
+const HELP_QA = [
+  ['Comment mon enfant se connecte-t-il ?', 'Tu lui envoies son lien personnel (bouton « 📲 Envoyer le lien », dans « Accès de… »). Il l’ouvre <b>une seule fois</b> sur son téléphone, sa tablette ou son ordinateur. Cet appareil est alors reconnu : la fois suivante, l’appli s’ouvre directement sur son espace, sans mot de passe à retenir.'],
+  ['À quoi sert le code à 4 chiffres ?', 'Il ne sert que lorsque <b>plusieurs profils sont enregistrés sur le même appareil</b> : une tablette familiale, un ordinateur partagé, ou ton propre téléphone sur lequel tu as aussi ton espace parent. L’appli demande alors « Qui se connecte ? » et le profil protégé (🔒) n’ouvre qu’avec son code. Cela évite qu’un frère, une sœur ou un parent réponde à sa place et fausse sa progression.'],
+  ['Faut-il mettre un code ?', 'Non, c’est facultatif. Si ton enfant révise uniquement sur son propre téléphone, laisse le champ vide : il n’aura jamais rien à taper. Tu peux ajouter ou changer le code plus tard dans « Accès de… » › « Autres réglages ».'],
+  ['Et sur un ordinateur ?', 'Touche « 💻 Afficher un code pour un ordinateur » : un code temporaire s’affiche. Ton enfant le tape une fois sur l’ordinateur, qui est ensuite reconnu comme son téléphone.'],
+  ['Un appareil a été perdu ou prêté ?', 'Dans « Accès de… », touche « Retirer » à côté de l’appareil : il ne pourra plus ouvrir l’appli. En cas de doute, « Créer un nouveau lien » désactive l’ancien lien.'],
+  ['Puis-je voir ce que fait mon enfant ?', 'Oui : « 👀 Voir l’appli comme… » t’ouvre son appli telle qu’il la voit, sans rien enregistrer. Le tableau de bord résume sa semaine, et tu reçois les e-mails choisis dans la rubrique « ✉️ E-mails ».'],
+];
+function helpCard() {
+  return `<details class="card stack help">
+    <summary><b>❓ Comment ça marche</b> <span class="small muted">connexion, code, appareils</span></summary>
+    ${HELP_QA.map(([q, a]) => `<details><summary><b>${q}</b></summary><p class="small" style="margin:6px 0 4px">${a}</p></details>`).join('')}
+  </details>`;
 }
 function welcomeCard() {
   return `<div class="card stack">
@@ -1633,7 +1648,7 @@ function accessCard(st, s) {
     <div class="codebox" id="code-${st.id}" hidden></div>
     ${dev.length ? `<table>${dev.map((d) => `<tr><td>${esc(d.label || 'Appareil')}<br><span class="small muted">Dernière utilisation : ${fmtDay(d.last)}</span></td><td style="text-align:right"><button class="link" data-dev="${d.id}" data-what="${esc(d.label || 'cet appareil')}">Retirer</button></td></tr>`).join('')}</table>` : ''}
     <details><summary class="small"><b>Autres réglages</b></summary><div class="stack" style="margin-top:8px">
-      <p class="small muted" style="margin:0">Code à 4 chiffres : ${st.has_pin ? 'activé' : 'aucun'} (demandé seulement sur un appareil partagé).</p>
+      <p class="small muted" style="margin:0">Code à 4 chiffres : ${st.has_pin ? 'activé' : 'aucun'} (demandé seulement si plusieurs profils partagent un appareil).</p>
       <div class="row"><div class="answer grow"><input data-pinin="${st.id}" maxlength="4" inputmode="numeric" placeholder="Nouveau code" autocomplete="off"></div><button class="btn small ghost" data-pinset="${st.id}">Enregistrer</button></div>
       <button class="btn small ghost" data-renew="${st.id}" data-name="${esc(name)}">🔄 Créer un nouveau lien (l’ancien ne marchera plus)</button>
       <button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}">Supprimer le profil de ${esc(name)} et ses données</button>

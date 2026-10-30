@@ -25,6 +25,8 @@ const ERR: Record<string, string> = {
   neutA: 'prend A pour le nombre de neutrons', zA: 'inverse A et Z', expSigne: 'se trompe de signe dans l’exposant',
   saisie: 'puissance de dix fausse (calculatrice)', sciNon: 'n’écrit pas en écriture scientifique', indice: 'lit mal une formule chimique',
   signeIon: 'confond perte et gain d’électrons (ions)', noyauIon: 'change le noyau dans un ion',
+  ajuste: 'écrit une équation non ajustée', coefIndice: 'confond coefficient et petit chiffre d’une formule',
+  masseConso: 'oublie la conservation de la masse', reacProd: 'confond réactifs et produits', testIon: 'se trompe dans un test d’ion ou de gaz',
 };
 
 async function rpc(fn: string, args: Record<string, unknown>) {

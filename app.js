@@ -513,7 +513,7 @@ function screenLesson(id, i) {
   const groups = chunks.map((h, g) => `
     <div class="grp" data-g="${g}" ${g > 0 && !already ? 'hidden' : ''}>
       <div class="card lessonc ${g === 0 ? '' : 'cont'} pop" style="margin-top:10px">${g === 0 ? `<h2>${sec.title}</h2>` : ''}${h}
-        ${g === nc - 1 ? `<div class="retenir"><b>📌 À retenir</b><br>${sec.retenir}</div>${video ? `<p class="small" style="margin-top:10px">🎬 <a href="${esc(video)}" target="_blank" rel="noopener">Voir la vidéo de ce point</a></p>` : ''}` : ''}
+        ${g === nc - 1 ? `<div class="retenir"><b>📌 À retenir</b><br>${sec.retenir}</div>${video ? `<div class="videos">${(Array.isArray(video) ? video : [['Voir la vidéo de ce point', video]]).map(([t, id]) => `<a class="vid" href="${/^https?:/.test(id) ? esc(id) : 'https://www.youtube.com/watch?v=' + esc(id)}" target="_blank" rel="noopener"><span class="play">▶</span><span><b>Vidéo</b><br><span class="small">${esc(t)}</span></span></a>`).join('')}</div>` : ''}` : ''}
       </div>
       ${quiz.map((q, k) => qAt(k) !== g ? '' : `
       <div class="card"><span class="chip">✋ Vérifie que tu as compris</span>

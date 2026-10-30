@@ -289,3 +289,19 @@ COURS.push(
     ],
   },
 );
+
+/* ---------- Vidéos de la chaîne YouTube du livre « Physique-Chimie 3e – Tout savoir ! » (Ellipses) ----------
+   Une ou deux vidéos courtes en fin de partie de leçon : { n° de partie : [[titre, id YouTube], …] } */
+(() => {
+  const V = {
+    C1: { 0: [['Temps et durée', 'w59QQFJ2LNQ']], 2: [['La relativité du mouvement', 'izjcOPTDf_w']], 4: [['Les mouvements en physique', 'GbKxKeZ6utc']],
+          7: [['Différence entre un sens et une direction', 'Nt0nc6PcpDI']], 8: [['Qu’est-ce que la chronophotographie ?', 's3vjxB-eMdE']] },
+    C2: { 6: [['Le son et le vide', 'hgQKyXTeh94'], ['Mesurer la vitesse du son dans l’air', 'TcR98PSnirA']],
+          8: [['L’année-lumière', '8U7W8yR1Vek'], ['L’unité astronomique', 'i_0yhI5_-34']] },
+    C4: { 0: [['Les sources et les formes d’énergie', 'WB4dFJxJq2c']], 1: [['Qu’est-ce qu’une conversion d’énergie ?', 'IfIy7PTIgY4']],
+          3: [['Calculer l’énergie cinétique d’un corps', 'gk7SXv_okAI']], 5: [['L’énergie potentielle de pesanteur', 'X8LFjyf0c1Y']] },
+    C5: { 1: [['Qu’est-ce qu’une force ?', 't7JT6fsqwvk'], ['Le poids et la masse d’un corps', '40p6Ry56Nhc']],
+          4: [['Différence entre un sens et une direction', 'Nt0nc6PcpDI']], 5: [['La force gravitationnelle', 'mA86SZg0zn8']] },
+  };
+  COURS.forEach((c) => { if (V[c.id]) c.videos = V[c.id]; });
+})();

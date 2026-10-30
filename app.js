@@ -28,6 +28,7 @@ async function rpc(fn, args) {
 let token = LS.get('rv_token', null);
 let role = LS.get('rv_role', null);
 let S = null; // état élève
+let PREVIEW = false; // le parent regarde l'appli comme l'élève (rien n'est enregistré)
 let saveTimer = null;
 
 function defaultState() {
@@ -80,6 +81,7 @@ function itemFromReview(r) {
   return it;
 }
 function saveState() {
+  if (PREVIEW) return;
   LS.set('rv_state', S);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
@@ -88,6 +90,7 @@ function saveState() {
 }
 let queue = LS.get('rv_queue', []);
 async function logAttempt(a) {
+  if (PREVIEW) return;
   queue.push(Object.assign({ ts: new Date().toISOString() }, a));
   LS.set('rv_queue', queue);
   flush();
@@ -172,7 +175,7 @@ function touchStreak() {
   else {
     const gap = dayDiff(st.last, t);
     if (gap === 1) st.count++;
-    else if (gap === 2 && st.jokers > 0) { st.jokers--; st.count++; msg = '🃏 Ton joker a sauvé ta série !'; }
+    else if (gap === 2 && st.jokers > 0) { st.jokers--; st.count++; msg = '🃏 Tu as raté un jour, mais ton joker de la semaine a protégé ta série !'; }
     else st.count = 1;
   }
   st.last = t;
@@ -203,7 +206,12 @@ function chooseNext(run) {
 }
 
 /* ---------- Écrans ---------- */
-function render(html) { $app.innerHTML = html; window.scrollTo(0, 0); }
+function render(html) {
+  $app.innerHTML = (PREVIEW ? `<div class="preview-bar"><span>👀 Aperçu de l’appli de ${esc((S && S.pseudo) || 'l’élève')} : rien n’est enregistré</span><button id="pvexit">Revenir</button></div>` : '') + html;
+  window.scrollTo(0, 0);
+  const pv = document.getElementById('pvexit'); if (pv) pv.onclick = exitPreview;
+}
+function exitPreview() { stopTimer(); PREVIEW = false; RUN = null; S = null; PLAN = []; screenParent(); }
 
 function screenLogin(err) {
   let pin = '';
@@ -301,106 +309,129 @@ function screenDiagIntro() {
   document.getElementById('go').onclick = () => startRun('diag');
 }
 
-function homeTopCards() {
-  let h = '';
-  if ((S.onboard || 0) < 2) {
-    h += `<div class="card hero stack"><span class="chip">Pour bien démarrer</span><h2>Étape ${S.onboard ? 2 : 1} sur 3</h2>
-      <p class="muted">${S.onboard ? '5 questions faciles, avec des indices.' : 'Une mini-leçon de 3 minutes sur la vitesse.'}</p>
-      <button class="btn" id="onb">${S.onboard ? 'Faire les 5 questions' : 'Lire la mini-leçon'}</button></div>`;
-  } else if (!S.diagDone) {
-    const b = nextDiagBlock(), ok = diagBlockReady();
-    h += `<div class="card hero stack"><span class="chip">Petit bilan • bloc ${b + 1} sur 3</span>
-      ${ok ? `<p class="muted">5 questions sans indice, environ 5 minutes.</p><button class="btn" id="diag">Faire le bloc ${b + 1}</button>`
-           : `<p class="muted">Bloc ${b} fait aujourd’hui, bravo ! Le bloc ${b + 1} t’attend demain. En attendant, tu peux t’entraîner ou lire un cours.</p>`}</div>`;
-  }
-  const e = nextExam();
-  if (e && e.days <= 7) {
-    const when = e.days === 0 ? 'aujourd’hui' : e.days === 1 ? 'demain' : `dans ${e.days} jours`;
-    h += `<div class="card exam stack"><div class="row between"><h3>📅 Contrôle ${when}</h3><span class="pill">${esc(e.day.split('-').reverse().slice(0, 2).join('/'))}</span></div>
-      <p class="muted small">${esc(e.label || 'Contrôle de physique')}${(e.skills || []).length ? ' • ' + e.skills.map((k) => (SKILLS.find((s) => s.id === k) || {}).short).filter(Boolean).join(', ') : ''}</p>
-      ${e.days <= 2 && e.days >= 1 ? '<p class="small"><b>Conseil du jour :</b> fais le contrôle blanc, puis relis la correction.</p><button class="btn" id="bossx">👾 Contrôle blanc</button>'
-        : e.days === 0 ? '<p class="small">Relis tes cartes formules et les pièges. Pas de nouvel exercice difficile aujourd’hui : tu es prête.</p><button class="btn ghost" id="cardsx">🃏 Mes cartes formules</button>'
-        : '<button class="btn" id="prep">🎯 Programme du jour : 8 exercices sur ce contrôle</button>'}</div>`;
-  }
-  const due = dueReviews().length;
-  if (due) h += `<div class="card rv stack"><div class="row between"><h3>🔁 À revoir aujourd’hui</h3><span class="pill">${due}</span></div>
-      <p class="muted small">Des exercices que tu avais ratés reviennent pour que tu ne les oublies pas.${dueReviews().some((r) => r.src === 'copie') ? ' Certains viennent de ton contrôle.' : ''}</p>
-      <button class="btn" id="rev">Revoir maintenant (${Math.min(due, 8)})</button></div>`;
-  return h;
+/* ---------- Accueil : une seule « mission du jour », puis les autres activités ---------- */
+const WARM_PRESET = () => [['V4', 1], ['V2', 1], ['V4', 1], ['V3', 1], ['V5', 1]].map(([s, l]) => generate(s, l));
+const examWhen = (e) => e.days === 0 ? 'aujourd’hui' : e.days === 1 ? 'demain' : `dans ${e.days} jours`;
+function mission() {
+  const b = nextDiagBlock(), e = nextExam(), due = dueReviews().length;
+  if ((S.onboard || 0) < 2) return S.onboard
+    ? { chip: 'Pour bien démarrer • étape 2 sur 3', title: '5 questions faciles', sub: 'Avec des indices si tu bloques. Environ 5 minutes.', btn: '▶ Faire les 5 questions', go: () => startRun('warmup', null, WARM_PRESET()) }
+    : { chip: 'Pour bien démarrer • étape 1 sur 3', title: 'Une mini-leçon sur la vitesse', sub: 'Environ 3 minutes. Ensuite, 5 questions faciles.', btn: '▶ Lire la mini-leçon', go: screenOnbLesson };
+  if (!S.diagDone && diagBlockReady()) return { chip: `Petit bilan • bloc ${b + 1} sur 3`, title: '5 questions sans indice', sub: 'Environ 5 minutes. Ce n’est pas une note : ça sert à savoir par où commencer.', btn: `▶ Faire le bloc ${b + 1}`, go: screenDiagIntro };
+  if (e && e.days === 0) return { chip: '📅 Contrôle aujourd’hui', title: 'Relis tes cartes', sub: 'Les formules et les pièges, tranquillement. Pas de nouvel exercice difficile aujourd’hui : tu es prête.', btn: '🃏 Relire mes cartes', go: screenCards, noDone: true };
+  if (e && e.days <= 2) return { chip: `📅 Contrôle ${examWhen(e)}`, title: 'Le contrôle blanc', sub: '8 questions, 20 minutes, sans indice, sur ce qui tombe au contrôle. Ensuite, relis la correction.', btn: '▶ Commencer le contrôle blanc', go: () => startRun('boss', null, null, true) };
+  if (e && e.days <= 7) { const r = Math.min(dueReviews(e.skills && e.skills.length ? e.skills : null).length, 3);
+    return { chip: `📅 Contrôle ${examWhen(e)}`, title: 'Spécial contrôle', sub: `Environ 10 min • ${r ? `${r} révision${r > 1 ? 's' : ''} + ${8 - r} exercices` : '8 exercices'} sur ce qui tombe au contrôle.`, btn: '▶ C’est parti', go: () => startRun('prep', null, null, true) }; }
+  if (due) { const r = Math.min(due, 4);
+    return { chip: 'Ta mission du jour', title: 'Séance du jour', sub: `Environ 12 min • ${r} révision${r > 1 ? 's' : ''} + ${10 - r} exercices`, btn: '▶ C’est parti', go: () => startRun('train', null, null, true) }; }
+  const L = COURS.find((c) => !c.ahead && !coursProg(c.id).done);
+  if (L) { const p = coursProg(L.id), first = Math.max(0, L.sections.findIndex((_, i) => !p.seen.includes(i)));
+    return { chip: 'Ta mission du jour', title: `Leçon : ${L.title}`, sub: `${p.seen.length ? 'Tu l’as commencée, ' : ''}environ ${lessonMinutes(L, first)} min${p.seen.length ? ' pour la finir' : ''}.`, btn: p.seen.length ? '▶ Continuer la leçon' : '▶ Lire la leçon', go: () => { MISSION_LESSON = L.id; screenLesson(L.id, first); } }; }
+  return { chip: 'Ta mission du jour', title: 'Séance du jour', sub: 'Environ 12 min • 10 exercices choisis pour toi', btn: '▶ C’est parti', go: () => startRun('train', null, null, true) };
 }
+let MISSION_LESSON = null;
+function missionDone() { S.missionDay = todayStr(); }
+function missionCard() {
+  const m = mission(), e = nextExam();
+  const examLine = e && e.days <= 7 && !/Contrôle/.test(m.chip) ? `<p class="small" style="margin:0">📅 Contrôle ${examWhen(e)} : ${esc(e.label || 'physique')}</p>` : '';
+  const waitDiag = !S.diagDone && (S.onboard || 0) >= 2 && !diagBlockReady() ? `<p class="small muted" style="margin:0">Bloc ${nextDiagBlock() + 1} du bilan : demain.</p>` : '';
+  if (S.missionDay === todayStr() && !m.noDone) return { html: `<div class="card done stack">
+      <span class="chip ok">✅ Mission du jour accomplie</span>
+      <h2>Bravo ${esc(S.pseudo)} !</h2>
+      <p class="muted">Reviens demain pour garder ta série 🔥 ${S.streak.count} jour${S.streak.count > 1 ? 's' : ''}.</p>${examLine}${waitDiag}
+      <button class="btn ghost" id="mgo">Encore un peu ? Une séance de plus</button></div>`, go: () => startRun('train') };
+  return { html: `<div class="card hero stack">
+      <span class="chip">${m.chip}</span>
+      <h2>${esc(m.title)}</h2>
+      <p class="muted">${m.sub}</p>${examLine.replace('class="small"', 'class="small muted"')}${waitDiag.replace('muted', '')}
+      <button class="btn" id="mgo">${m.btn}</button></div>`, go: m.go };
+}
+/* Installer l'appli sur l'écran d'accueil du téléphone */
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function installHow() {
+  return isIOS() ? 'Dans Safari, touche le bouton <b>Partager</b> (le carré avec une flèche ⬆️), puis <b>« Sur l’écran d’accueil »</b>.'
+    : 'Dans Chrome, touche le menu <b>⋮</b> en haut à droite, puis <b>« Installer l’application »</b> ou <b>« Ajouter à l’écran d’accueil »</b>.';
+}
+function installCard() {
+  if (PREVIEW || isStandalone() || LS.get('rv_install_hide', false)) return '';
+  return `<div class="card install stack"><div class="row"><span class="appic">⚡</span><div class="grow"><b>Mets l’appli sur ton téléphone</b><br><span class="small muted">Une icône sur ton écran d’accueil, comme une vraie appli.</span></div></div>
+    ${installEvt ? '<button class="btn" id="inst">Installer l’appli</button>' : `<p class="small" style="margin:0">${installHow()}</p>`}
+    <button class="link" id="instno" style="padding:0">${installEvt ? 'Plus tard' : 'C’est fait / plus tard'}</button></div>`;
+}
+function bindInstall() {
+  const hide = () => { LS.set('rv_install_hide', true); screenHome(); };
+  const i = document.getElementById('inst'); if (i) i.onclick = async () => { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; hide(); };
+  const n = document.getElementById('instno'); if (n) n.onclick = hide;
+}
+function openSettings() {
+  if (document.getElementById('qmodal')) return;
+  document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="qmodal" role="dialog" aria-modal="true"><div class="card sheet stack pop">
+    <h2>Réglages</h2>
+    <button class="btn ghost" id="sAa">${S.large ? '🔤 Texte normal' : '🔠 Texte plus grand'}</button>
+    ${isStandalone() ? '' : '<button class="btn ghost" id="sInst">📲 Mettre l’appli sur mon téléphone</button><p class="small muted" id="sHow" hidden></p>'}
+    <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Se déconnecter'}</button>
+    <button class="link" id="sClose">Fermer</button></div></div>`);
+  const close = () => { const m = document.getElementById('qmodal'); if (m) m.remove(); };
+  document.getElementById('qmodal').onclick = (e) => { if (e.target.id === 'qmodal') close(); };
+  document.getElementById('sClose').onclick = close;
+  document.getElementById('sAa').onclick = () => { S.large = !S.large; document.body.classList.toggle('large', S.large); saveState(); close(); screenHome(); };
+  const si = document.getElementById('sInst');
+  if (si) si.onclick = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; close(); return; } const h = document.getElementById('sHow'); h.innerHTML = installHow(); h.hidden = false; };
+  document.getElementById('sOut').onclick = () => { close(); PREVIEW ? exitPreview() : logout(); };
+}
+const activeCards = () => S.cards.filter((k) => skillActive(k)).length;
 function screenHome() {
   const L = levelInfo(S.xp);
-  const unlocked = bossUnlocked();
-  const nb = bronzeCount();
+  const unlocked = bossUnlocked(), nb = bronzeCount();
+  const M = missionCard();
+  const act = SKILLS.filter((s) => skillActive(s.id)), locked = SKILLS.filter((s) => !skillActive(s.id));
+  const coursDone = COURS.filter((c) => coursProg(c.id).done).length;
   render(`
     <div class="top">
       <div class="avatar">${esc(S.pseudo[0].toUpperCase())}</div>
       <div class="grow">
-        <div class="row between"><b>${esc(S.pseudo)}</b><span class="small muted">Niveau ${L.lvl}</span></div>
-        <div class="xpbar"><i style="width:${Math.round(L.rest / L.need * 100)}%"></i></div>
-        <div class="small muted">${L.rest} / ${L.need} XP</div>
+        <div class="row between"><b>${esc(S.pseudo)}</b><span class="small"><b>Niveau ${L.lvl}</b> • 🔥 ${S.streak.count} jour${S.streak.count > 1 ? 's' : ''}</span></div>
+        <div class="xpbar" title="${L.rest} / ${L.need} XP"><i style="width:${Math.round(L.rest / L.need * 100)}%"></i></div>
       </div>
+      <button class="gear" id="set" aria-label="Réglages">⚙️</button>
     </div>
-    <div class="row wrap" style="margin-bottom:14px">
-      <span class="pill">🔥 ${S.streak.count} jour${S.streak.count > 1 ? 's' : ''}</span>
-      <span class="pill">🃏 ${S.streak.jokerWeek === weekId() ? S.streak.jokers : 1} joker</span>
-      <span class="pill">⭐ ${S.xp} XP</span>
+    ${installCard()}
+    ${M.html}
+    <h3 style="margin:18px 4px 10px">Autres activités</h3>
+    <div class="acts">
+      <button class="act" id="redac"><span class="ic">✍️</span><b>Rédiger</b><span class="small muted">Comme sur ta copie</span></button>
+      <button class="act" id="cours"><span class="ic">📚</span><b>Mes cours</b><span class="small muted">${coursDone}/${COURS.length} lus</span></button>
+      <button class="act ${unlocked ? '' : 'off'}" id="boss"><span class="ic">👾</span><b>Contrôle blanc</b><span class="small muted">${unlocked ? (S.boss.best != null ? `Record ${fr(S.boss.best, 1)}/20` : '8 questions, 20 min') : `🔒 ${nb}/${BOSS_NEED} bronzes`}</span></button>
+      <button class="act" id="bat"><span class="ic">🕵️</span><b>Bats ta note</b><span class="small muted">Chasse à l’erreur</span></button>
     </div>
-    ${homeTopCards()}
-    <div class="card hero stack">
-      <h2>Séance du jour</h2>
-      <p class="muted">10 exercices choisis pour toi${dueReviews().length ? ', en commençant par ceux à revoir' : ''}, environ 12 minutes.</p>
-      <button class="btn" id="train">▶ C’est parti</button>
-    </div>
-    <div class="card">
-      <div class="row between"><h3>✍️ Rédige comme sur ta copie</h3><span class="small muted">4 problèmes</span></div>
-      <p class="muted small">Formule, conversion, calcul, unité, phrase réponse : on s’entraîne à tout écrire, avec de l’aide au début.</p>
-      <button class="btn ghost" id="redac">Rédiger</button>
-    </div>
-    ${coursHomeCard()}
-    <div class="card">
-      <div class="row between"><h3>👾 Boss : contrôle blanc</h3>${S.boss.best != null ? `<span class="pill">Record ${fr(S.boss.best, 1)}/20</span>` : ''}</div>
-      ${unlocked ? '<p class="muted small">8 questions, 20 minutes, sans indice. Comme un vrai contrôle.</p><button class="btn ghost" id="boss">Affronter le boss</button>'
-        : `<p class="muted small">Débloqué avec ${BOSS_NEED} médailles bronze (ou une semaine avant un contrôle). Tu en as ${nb}/${BOSS_NEED}.</p><div class="bar"><i style="width:${Math.min(100, nb / BOSS_NEED * 100)}%"></i></div>`}
-    </div>
-    <div class="card">
-      <div class="row between"><h3>🕵️ Bats ta note</h3><span class="small muted">Chasse à l’erreur</span></div>
-      <p class="muted small">Retrouve les erreurs glissées dans des calculs du cahier. Les repérer, c’est ne plus les faire.</p>
-      <button class="btn ghost" id="bat">Mener l’enquête</button>
-    </div>
-    <h3 style="margin:18px 4px 10px">Mes compétences</h3>
-    <p class="small muted" style="margin:-4px 4px 10px">Une médaille se gagne en réussissant sur plusieurs jours : bronze en 2 jours, argent en 3, or en 4.</p>
-    <div class="skills">${SKILLS.map((s) => skillActive(s.id) ? `
+    <h3 style="margin:18px 4px 6px">Mes compétences</h3>
+    <p class="small muted" style="margin:0 4px 10px">Une médaille se gagne en réussissant sur plusieurs jours : bronze en 2 jours, argent en 3, or en 4.</p>
+    <div class="skills">${act.map((s) => `
       <button class="skill" data-s="${s.id}">
         <div class="row between"><span class="ic">${s.icon}</span>${medalHtml(S.mastery[s.id])}</div>
         <div class="nm">${s.name}</div>
         <div class="bar"><i style="width:${S.mastery[s.id]}%"></i></div>
-      </button>` : `
+      </button>`).join('')}</div>
+    ${locked.length ? `<details class="soon"><summary>🔒 Bientôt (${locked.length}) <span class="small muted">: s’ouvrent avec les leçons d’avance</span></summary>
+      <div class="skills" style="margin-top:10px">${locked.map((s) => `
       <button class="skill locked" data-l="${s.lesson}">
         <div class="row between"><span class="ic">${s.icon}</span><span class="small muted">🔒</span></div>
         <div class="nm">${s.name}</div>
         <div class="small muted">Après la leçon « ${COURS.find((c) => c.id === s.lesson).title} »</div>
-      </button>`).join('')}</div>
-    <div class="row" style="margin-top:14px"><button class="btn ghost" id="cards">🃏 Mes cartes formules (${S.cards.length}/${SKILLS.length})</button></div>
-    <div class="center" style="margin-top:18px">
-      <button class="link" id="aa">${S.large ? 'Texte normal' : 'Texte plus grand'}</button>
-      <button class="link" id="out">Se déconnecter</button>
-    </div>`);
+      </button>`).join('')}</div></details>` : ''}
+    <div class="row" style="margin-top:14px"><button class="btn ghost" id="cards">🃏 Mes cartes formules (${activeCards()}/${act.length})</button></div>`);
   const on = (id, f) => { const el = document.getElementById(id); if (el) el.onclick = f; };
-  on('train', () => startRun('train'));
+  on('mgo', M.go);
+  on('set', openSettings);
   on('redac', () => startRun('redac'));
   on('cours', screenCours);
   on('bat', () => startRun('bat'));
-  on('boss', () => startRun('boss'));
-  on('bossx', () => startRun('boss'));
+  on('boss', () => unlocked ? startRun('boss') : toast(`Le contrôle blanc s’ouvre avec ${BOSS_NEED} médailles bronze (tu en as ${nb}), ou une semaine avant un contrôle.`));
   on('cards', screenCards);
-  on('cardsx', screenCards);
-  on('prep', () => startRun('prep'));
-  on('rev', () => startRun('review'));
-  on('onb', () => S.onboard ? startRun('warmup', null, [['V4', 1], ['V2', 1], ['V4', 1], ['V3', 1], ['V5', 1]].map(([s, l]) => generate(s, l))) : screenOnbLesson());
-  on('diag', screenDiagIntro);
-  on('aa', () => { S.large = !S.large; document.body.classList.toggle('large', S.large); saveState(); screenHome(); });
-  on('out', () => logout());
+  bindInstall();
   $app.querySelectorAll('.skill[data-s]').forEach((el) => el.onclick = () => screenSkill(el.dataset.s));
   $app.querySelectorAll('.skill[data-l]').forEach((el) => el.onclick = () => screenLesson(el.dataset.l, 0));
 }
@@ -428,7 +459,7 @@ function screenCards() {
     <button class="link" id="back">← Retour</button>
     <h2>Mes cartes formules</h2>
     <p class="muted small">Une carte se débloque à chaque médaille bronze.</p>
-    <div class="cards">${SKILLS.map((s) => S.cards.includes(s.id)
+    <div class="cards">${SKILLS.filter((s) => skillActive(s.id)).map((s) => S.cards.includes(s.id)
       ? `<div class="fcard pop"><h3>${s.icon} ${CARDS[s.id].title}</h3><div>${CARDS[s.id].body}</div></div>`
       : `<div class="fcard locked"><div>🔒<br>${s.short}</div></div>`).join('')}</div>`);
   document.getElementById('back').onclick = screenHome;
@@ -503,6 +534,10 @@ function chunkLesson(html) {
   if (cur.length) out.push(cur.join(''));
   return out.length ? out : [html];
 }
+function lessonMinutes(c, from) {
+  const w = c.sections.slice(from || 0).reduce((n, x) => n + stripTags(x.html + ' ' + x.retenir).split(/\s+/).length, 0);
+  return Math.max(2, Math.round(w / 110));
+}
 function screenLesson(id, i) {
   const c = COURS.find((x) => x.id === id), sec = c.sections[i], n = c.sections.length, p = coursProg(id);
   const isLast = i === n - 1;
@@ -524,15 +559,15 @@ function screenLesson(id, i) {
     </div>`).join('');
   render(`
     <div class="row" style="margin-bottom:10px"><button class="quitbtn" id="back">✕ Fermer</button>
-      <div class="progress"><i style="width:${Math.round((i + 1) / n * 100)}%"></i></div><span class="small muted">${i + 1}/${n}</span></div>
+      <div class="progress"><i style="width:${Math.round((i + 1) / n * 100)}%"></i></div><span class="small muted">Partie ${i + 1} sur ${n}</span></div>
     <span class="chip">${c.icon} ${c.title}</span>
-    ${i === 0 ? `<p class="small muted" style="margin-top:8px">${c.ahead ? '🚀 En avance sur la classe : ' : '📓 Dans ton cahier : '}${c.cahier}</p>` : ''}
+    ${i === 0 ? `<p class="small muted" style="margin-top:8px">⏱ Environ ${lessonMinutes(c, 0)} minutes • ${c.ahead ? '🚀 en avance sur la classe : ' : '📓 dans ton cahier : '}${c.cahier}</p>` : ''}
     ${groups}
     <div class="actions">${i > 0 ? '<button class="btn ghost" id="prev">← Avant</button>' : '<span></span>'}
       <button class="btn" id="next"></button></div>`);
   let shown = already ? nc : 1;
   const nextBtn = document.getElementById('next');
-  const label = () => { nextBtn.textContent = shown < nc ? `Suite (${shown}/${nc}) ↓` : isLast ? 'Terminer la leçon ✓' : 'Partie suivante →'; };
+  const label = () => { nextBtn.textContent = shown < nc ? 'Continuer ↓' : isLast ? 'Terminer la leçon ✓' : 'Partie suivante →'; };
   label();
   if (!already) { p.seen.push(i); saveState(); }
   document.getElementById('back').onclick = screenCours;
@@ -570,6 +605,7 @@ function finishLesson(id) {
   const first = !p.done;
   const before = activeSkills();
   if (first) { p.done = true; addXP(20); }
+  if (MISSION_LESSON === id) { missionDone(); MISSION_LESSON = null; }
   const unlocked = c.skills.filter((k) => !before.includes(k));
   saveState(); flush();
   render(`
@@ -652,8 +688,8 @@ function screenExo(id, k) {
 /* ---------- Déroulé d'une série d'exercices ---------- */
 let RUN = null;
 const WARM = 'warmup';
-function startRun(mode, skill, preset) {
-  RUN = { mode, skill, idx: 0, results: [], xp0: S.xp, medals0: SKILLS.map((s) => medalOf(S.mastery[s.id])), started: Date.now() };
+function startRun(mode, skill, preset, isMission) {
+  RUN = { mode, skill, mission: !!isMission, idx: 0, results: [], xp0: S.xp, medals0: SKILLS.map((s) => medalOf(S.mastery[s.id])), started: Date.now() };
   if (preset) { RUN.items = preset; RUN.total = preset.length; }
   else if (mode === 'diag') { RUN.block = nextDiagBlock(); RUN.items = buildDiagnostic(RUN.block); RUN.total = RUN.items.length; }
   else if (mode === 'boss') {
@@ -728,23 +764,42 @@ function headerHtml() {
   const tag = it.fromCopie ? '<span class="chip warn">📝 De ton contrôle</span>' : it.reviewId ? '<span class="chip warn">🔁 À revoir</span>' : '';
   return `<div class="row" style="margin-bottom:10px"><button class="quitbtn" id="quit">✕ Quitter</button><div class="progress"><i style="width:${pct}%"></i></div>
       <span class="small muted">${RUN.idx + 1}/${RUN.total}</span>${RUN.mode === 'boss' ? '<span class="pill timer" id="timer"></span>' : ''}</div>
-    <div class="row between wrap"><span class="chip">${sk.icon} ${sk.name}</span>${tag}<span class="small muted">${RUN_LABEL[RUN.mode] || ''} <span class="dots">${[1, 2, 3].map((l) => `<i class="${l <= it.level ? 'on' : ''}"></i>`).join('')}</span></span></div>`;
+    <div class="row between wrap"><span class="chip">${sk.icon} ${sk.name}</span>${tag}<span class="small muted">${RUN_LABEL[RUN.mode] || ''}</span></div>`;
 }
 const isTest = () => RUN.mode === 'diag' || RUN.mode === 'boss';
-/* Indice de confiance : demandé à la première réponse (« sûre / j'hésite / au hasard ») */
-const confBar = (hidden) => `<div id="confbar" ${hidden ? 'hidden' : ''}><p class="small muted" style="margin:10px 0 6px">Je valide en étant…</p>
-  <div class="conf"><button class="btn small ghost" data-c="sure">✅ sûre</button><button class="btn small ghost" data-c="hesite">🤔 j’hésite</button><button class="btn small ghost" data-c="hasard">🎲 au hasard</button></div></div>`;
+/* Indice de confiance : demandé une fois, après « Valider » (« sûre / j'hésite / au hasard ») */
+function askConf(cb) {
+  if (document.getElementById('csheet')) return;
+  if (document.activeElement) document.activeElement.blur();
+  document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="csheet" role="dialog" aria-modal="true"><div class="card sheet stack pop">
+    <b>Tu réponds en étant…</b>
+    <div class="conf"><button class="btn ghost" data-c="sure">✅<br>sûre</button><button class="btn ghost" data-c="hesite">🤔<br>j’hésite</button><button class="btn ghost" data-c="hasard">🎲<br>au hasard</button></div>
+    <button class="link" id="cback">Changer ma réponse</button></div></div>`);
+  const close = () => { const m = document.getElementById('csheet'); if (m) m.remove(); };
+  document.getElementById('cback').onclick = close;
+  document.getElementById('csheet').onclick = (e) => { if (e.target.id === 'csheet') close(); };
+  document.querySelectorAll('#csheet [data-c]').forEach((b) => b.onclick = () => { close(); cb(b.dataset.c); });
+}
+function validate() {
+  const c = RUN.cur, it = c.item;
+  if (c.done) return;
+  if (it.type === 'num') { if (parseNum(document.getElementById('ans').value) === null) return fb('hint', 'Écris un nombre, par exemple 3,25'); }
+  else if (c.sel == null) return toast('Touche d’abord une réponse.');
+  const go = () => it.type === 'num' ? checkNum() : checkQcm(c.sel, $app.querySelectorAll('.choice')[c.sel]);
+  if (c.conf) return go();
+  askConf((v) => { c.conf = v; go(); });
+}
 function screenItem() {
   const it = RUN.cur.item;
   if (it.type === 'steps') return screenSteps();
   let body = '';
   if (it.type === 'num') {
-    body = `<div class="answer"><input id="ans" inputmode="decimal" autocomplete="off" placeholder="Ta réponse"><span class="unit">${esc(it.unit)}</span></div>`;
+    body = `<div class="answer"><input id="ans" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="Ta réponse"><span class="unit">${esc(it.unit)}</span></div>`;
   } else {
     body = `<div class="choices">${it.choices.map((c, i) => `<button class="choice" data-i="${i}">${c.t}</button>`).join('')}</div>`;
   }
   const side = isTest() ? '<button class="btn ghost" id="nsp">Je ne sais pas</button>' : '<button class="btn ghost" id="hint">💡 Indice</button>';
-  const btns = `${confBar(it.type === 'qcm')}<div id="okrow" hidden><div class="actions one"><button class="btn" id="ok">Valider</button></div></div><div class="actions one" style="margin-top:8px">${side}</div>`;
+  const btns = `<div id="okrow"><div class="actions one"><button class="btn" id="ok" ${it.type === 'qcm' ? 'disabled' : ''}>Valider</button></div></div><div class="actions one" style="margin-top:8px">${side}</div>`;
   render(`${headerHtml()}
     <div class="card pop">
       <div class="question">${it.q}</div>
@@ -754,25 +809,17 @@ function screenItem() {
       <div id="btns">${btns}</div>
     </div>`);
   document.getElementById('quit').onclick = askQuit;
-  $app.querySelectorAll('#confbar [data-c]').forEach((b) => b.onclick = () => {
-    RUN.cur.conf = b.dataset.c;
-    if (it.type === 'num') checkNum();
-    else if (RUN.cur.sel != null) checkQcm(RUN.cur.sel, $app.querySelectorAll('.choice')[RUN.cur.sel]);
-  });
+  document.getElementById('ok').onclick = validate;
   if (it.type === 'num') {
     const inp = document.getElementById('ans'); inp.focus({ preventScroll: true });
-    inp.onkeydown = (e) => { if (e.key !== 'Enter') return; if (RUN.cur.conf) checkNum(); else toast('Choisis : sûre, j’hésite ou au hasard'); };
-    document.getElementById('ok').onclick = checkNum;
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); validate(); } };
   } else {
     $app.querySelectorAll('.choice').forEach((b) => b.onclick = () => {
       if (RUN.cur.done || b.classList.contains('wrong')) return;
-      if (!RUN.cur.conf) { // première réponse : on choisit, puis on dit si on est sûre
-        $app.querySelectorAll('.choice').forEach((x) => x.classList.remove('sel'));
-        b.classList.add('sel'); RUN.cur.sel = +b.dataset.i;
-        document.getElementById('confbar').hidden = false;
-        return;
-      }
-      checkQcm(+b.dataset.i, b);
+      if (RUN.cur.conf) return checkQcm(+b.dataset.i, b); // après une première erreur : on retente directement
+      $app.querySelectorAll('.choice').forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel'); RUN.cur.sel = +b.dataset.i;
+      document.getElementById('ok').disabled = false;
     });
   }
   const h = document.getElementById('hint'); if (h) h.onclick = showHint;
@@ -818,9 +865,8 @@ function genericError(x, ans) {
   if (is(10) || is(0.1) || is(100) || is(0.01) || is(1000) || is(0.001)) return { code: 'p10', msg: 'Le bon chiffre, mais la virgule n’est pas au bon endroit : vérifie les unités.' };
   return null;
 }
-function afterFirstTry() { // après une première erreur : plus de question de confiance, un simple bouton
-  const cb = document.getElementById('confbar'); if (cb) cb.hidden = true;
-  const ok = document.getElementById('okrow'); if (ok && RUN.cur.item.type === 'num') ok.hidden = false;
+function afterFirstTry() { // après une première erreur en QCM : on retouche directement une autre réponse
+  const ok = document.getElementById('okrow'); if (ok && RUN.cur.item.type === 'qcm') ok.hidden = true;
 }
 function checkNum() {
   const c = RUN.cur, it = c.item;
@@ -870,12 +916,14 @@ function screenSteps() {
     if (cur.kind === 'qcm') active += `<div class="choices">${cur.choices.map((ch, j) => `<button class="choice" data-j="${j}">${ch.t}</button>`).join('')}</div>`;
     else active += `<div class="answer"><input id="sans" inputmode="decimal" autocomplete="off" placeholder="Ton résultat">${cur.units ? '' : `<span class="unit">${esc(cur.unit)}</span>`}</div>
       ${cur.units ? `<p class="small muted" style="margin:8px 0 4px">L’unité :</p><div class="units">${cur.units.map((u) => `<button class="chipbtn" data-u="${esc(u)}">${esc(u)}</button>`).join('')}</div>` : ''}
-      <div class="actions" style="margin-top:10px"><button class="btn ghost" id="sdk">Je ne sais pas</button><button class="btn" id="sok">Valider</button></div>`;
+      <div class="actions" style="margin-top:10px"><button class="btn ghost" id="sdk">Je bloque</button><button class="btn" id="sok">Valider</button></div>`;
     active += `<div id="sfb"></div></div>`;
   }
+  const keys = [...it.q.matchAll(/<b>(.*?)<\/b>/g)].map((m) => stripTags(m[1])).filter((x) => /\d/.test(x));
+  const firstStep = c.si === it.steps.findIndex((s) => !s.given);
   render(`${headerHtml()}
+    <details class="enonce" ${firstStep ? 'open' : ''}><summary><b>📄 L’énoncé</b>${keys.length ? ` <span class="small">${keys.map(esc).join(' • ')}</span>` : ''}</summary><div class="question" style="margin:8px 0 0">${it.q}</div></details>
     <div class="card pop">
-      <div class="question">${it.q}</div>
       <p class="small muted">${it.level === 1 ? 'Le début est fait pour toi : lis-le, puis termine.' : it.level === 2 ? 'La formule est donnée : à toi la suite.' : 'Tout est à toi, comme sur ta copie.'}</p>
       <div class="steps-wrap">${it.steps.slice(0, c.si).map(done).join('')}${active}</div>
       <div id="fb"></div><div id="btns"></div>
@@ -978,7 +1026,6 @@ function finishItem(correct, errCode, raw, lastMsg) {
       + (it.type === 'steps' ? method : `<div class="fb sol"><b>${it.type === 'num' ? `La réponse : ${fr(it.ans)} ${esc(it.unit)}` : 'Retiens bien la bonne réponse en vert.'}</b>${it.type === 'num' && it.sol && it.sol.length ? `<ol>${steps(it).map((s) => `<li>${s}</li>`).join('')}</ol>` : it.hints && it.hints[0] ? `<p style="margin:6px 0 0">📌 ${it.hints[0]}</p>` : ''}</div>`)
       + `<div class="small muted">Pas grave : cet exercice reviendra demain sous une autre forme. +2 XP pour l’effort.</div>`;
   }
-  const cb = document.getElementById('confbar'); if (cb) cb.remove();
   document.getElementById('btns').innerHTML = `<div class="actions one"><button class="btn ${correct ? 'good' : ''}" id="next">Continuer</button></div>`;
   const nb = document.getElementById('next'); nb.focus({ preventScroll: true });
   nb.onclick = () => { RUN.idx++; nextItem(); };
@@ -1040,6 +1087,7 @@ function finishRun() {
   const res = RUN.results, ok = res.filter((r) => r.correct).length;
   const streakMsg = touchStreak();
   S.sessions++;
+  if (RUN.mission || RUN.mode === 'diag' || RUN.mode === WARM) missionDone();
   if (RUN.mode === 'diag') return finishDiagBlock(streakMsg);
   if (RUN.mode === WARM) return finishWarmup(streakMsg);
   if (RUN.mode === 'boss') return finishBoss(streakMsg);
@@ -1060,9 +1108,11 @@ function finishRun() {
     </div>
     ${newMedals.length ? `<div class="card"><h3>Nouvelles médailles</h3>${newMedals.map((s) => `<div class="row between" style="margin:6px 0"><span>${s.icon} ${s.name}</span>${medalHtml(S.mastery[s.id])}</div>`).join('')}</div>` : ''}
     <div class="stack">
-      <button class="btn" id="review">📝 Revoir ma séance, exercice par exercice</button>
-      ${res.some((r) => !r.clean) ? `<button class="btn ghost" id="redo">🔁 Refaire les exercices ratés (${res.filter((r) => !r.clean).length}), avec d’autres nombres</button>` : ''}
-      <button class="btn ghost" id="again">Encore une séance</button><button class="btn ghost" id="home">Retour à l’accueil</button></div>`);
+      <button class="btn" id="review">📝 ${res.some((r) => !r.clean) ? 'Revoir mes erreurs' : 'Revoir ma séance'}</button>
+      <button class="btn ghost" id="home">Retour à l’accueil</button></div>
+    <div class="center" style="margin-top:8px">
+      ${res.some((r) => !r.clean) ? `<button class="link" id="redo">Refaire les ratés (${res.filter((r) => !r.clean).length}) avec d’autres nombres</button><br>` : ''}
+      <button class="link" id="again">Encore une séance</button></div>`);
   const done = RUN;
   document.getElementById('review').onclick = () => screenReview(done);
   const rd = document.getElementById('redo'); if (rd) rd.onclick = () => startRedo(done);
@@ -1166,6 +1216,79 @@ function finishBoss(streakMsg) {
 }
 
 /* ---------- Tableau de bord parent ---------- */
+/* Ce que le parent peut dire à l'élève, pour chaque erreur fréquente */
+const ERR_ADVICE = {
+  conv36: 'demande-lui si le résultat en m/s doit être plus petit ou plus grand qu’en km/h (plus petit : on divise par 3,6).',
+  sec100: '15 s ne s’écrit pas 0,15 min : refaites ensemble 15 ÷ 60 = 0,25 min.',
+  base100: 'rappelle-lui que 1 h = 60 min et 1 min = 60 s, jamais 100.',
+  minutes: 'pour une vitesse en km/h, la durée doit être en heures : 30 min = 0,5 h.',
+  inverse: 'vitesse = distance ÷ durée : la distance en haut, toujours.',
+  formule: 'demande-lui d’écrire la formule avant de calculer, à chaque fois.',
+  noconv: 'avant de calculer, une question : « mes unités vont-elles ensemble ? »',
+  allerretour: 'pour un écho, le son fait l’aller et le retour : on divise la distance totale par 2.',
+  oubli_df: 'distance d’arrêt = distance de réaction + distance de freinage : les deux morceaux.',
+  oubli_dr: 'distance d’arrêt = distance de réaction + distance de freinage : les deux morceaux.',
+  carre: 'dans df = k × v², la vitesse est au carré : v × v.',
+  tr_faux: 'relire l’énoncé et souligner les données avant de calculer.',
+  pct_total: 'une augmentation en %, c’est (nouveau − ancien) ÷ ancien × 100.',
+  question: 'à la fin, lui faire relire la question : « ai-je répondu à ce qui est demandé ? »',
+  notion: 'relire avec elle la leçon correspondante dans « Mes cours ».',
+  p10: 'un écart de 10, 100 ou 1 000 vient presque toujours d’une conversion d’unités.',
+  conv60: 'heures → minutes : × 60 ; minutes → heures : ÷ 60.',
+  arrondi: 'garder tous les chiffres jusqu’au bout, arrondir seulement le résultat final.',
+  autre: 'regardez ensemble « Derniers exercices » pour voir où ça coince.',
+};
+/* Erreurs de copie en mots simples : chacune pointe vers une compétence et un type d'erreur */
+const COPY_TYPES = [
+  ['Conversion km/h ↔ m/s (le 3,6 dans le mauvais sens)', 'V3', 'conv36'],
+  ['Secondes écrites comme des centièmes (15 s → 0,15)', 'V2', 'sec100'],
+  ['Conversion heures / minutes / secondes', 'V2', 'conv60'],
+  ['Vitesse calculée à l’envers (temps ÷ distance)', 'V4', 'inverse'],
+  ['Mauvaise formule pour une distance ou une durée', 'V5', 'formule'],
+  ['Écho : oubli de diviser par 2', 'V6', 'allerretour'],
+  ['Distance d’arrêt : un morceau oublié (réaction ou freinage)', 'V7', 'oubli_df'],
+  ['Arrondi trop tôt ou virgule mal placée', 'V8', 'arrondi'],
+  ['N’a pas répondu à la question posée', 'V8', 'question'],
+  ['Notion de cours pas comprise (mouvement, référentiel…)', 'V1', 'notion'],
+];
+const KPI_HELP = [
+  ['Temps total', (s, t) => `${Math.round((t.ms || 0) / 60000)} min en ${s.sessions} séance${s.sessions > 1 ? 's' : ''}`, 'Temps passé sur les exercices, depuis le début.'],
+  ['Niveau et XP', (s) => `niveau ${levelInfo(s.xp).lvl} • ${s.xp} XP • série 🔥 ${s.streak.count}`, 'Points gagnés en s’entraînant ; la série compte les jours d’affilée.'],
+  ['Rédaction (7 j)', (s, t) => t.redac7 ? `${Math.round(t.redacok7 / t.redac7 * 100)} % sur ${t.redac7} problème(s)` : 'pas encore', 'Problèmes rédigés en entier (formule, conversion, calcul, phrase) sans aide.'],
+  ['Justes « au hasard » (7 j)', (s, t) => `${t.lucky7 || 0}`, 'Bonnes réponses qu’elle a déclarées au hasard : elles reviennent le lendemain pour vérifier.'],
+  ['Faux alors que « sûre » (7 j)', (s, t) => `${t.surewrong7 || 0}`, 'Erreurs faites en se croyant sûre : ce sont les idées fausses à corriger en priorité.'],
+  ['File « À revoir »', (s) => `${(s.review || []).length} exercice(s)`, 'Chaque erreur revient à J+1, J+3, J+7 puis J+21 jusqu’à être réussie.'],
+  ['Démarrage', (s) => s.diagDone ? `bilan terminé le ${s.diag.date.split('-').reverse().join('/')} (${s.diag.score}/${s.diag.total})` : `${(s.diagParts || []).filter(Boolean).length}/3 blocs du bilan`, 'Bilan de départ en 3 blocs de 5 questions, un par jour.'],
+];
+const isOpen = (s, k) => !k.lesson || !!((s.cours || {})[k.lesson] || {}).done;
+function weekCard(s, st) {
+  const t = st.totals || {}, days = st.days || [];
+  const d7 = []; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() - i); d7.push(d.toISOString().slice(0, 10)); }
+  const active = days.filter((d) => d7.includes(d.day) && d.n > 0).length;
+  const feu = active >= 4 ? 'g' : active >= 2 ? 'o' : 'r';
+  const reg = `<span class="feu ${feu}"></span><b>Régularité :</b> ${active} jour${active > 1 ? 's' : ''} sur 7, ${t.n7 || 0} exercices${t.n7 ? ` (${Math.round(t.ok7 / t.n7 * 100)} % de réussite)` : ''}. ${feu === 'g' ? 'Très bien, c’est le bon rythme.' : feu === 'o' ? 'Objectif : 4 jours par semaine, même 10 minutes.' : 'Elle a peu pratiqué : un petit mot pour l’encourager à faire sa mission du jour.'}`;
+  const gains = SKILLS.filter((k) => isOpen(s, k)).map((k) => ({ k, g: s.mastery[k.id] - ((s.diag && s.diag.skills && s.diag.skills[k.id]) ?? 0) })).sort((a, b) => b.g - a.g);
+  const best = gains[0];
+  const prog = best && best.g > 0 ? `<b>Progrès :</b> ${best.k.icon} ${best.k.name}, ${medalOf(s.mastery[best.k.id]) !== 'none' ? `médaille ${MEDAL_TXT[medalOf(s.mastery[best.k.id])].toLowerCase()}, ` : ''}+${best.g} points depuis ${s.diag ? 'le bilan de départ' : 'le début'}.`
+    : '<b>Progrès :</b> pas encore de progrès net mesuré. Les médailles demandent des réussites sur plusieurs jours.';
+  const err = (st.errors || []).find((e) => !['nsp', 'hasard'].includes(e.code));
+  const att = err ? `<b>À travailler :</b> ${esc(ERR_LABELS[err.code] || err.code)} (${err.n} fois en 30 jours). Ce que tu peux lui dire : ${ERR_ADVICE[err.code] || ERR_ADVICE.autre}`
+    : '<b>À travailler :</b> pas d’erreur qui se répète pour l’instant.';
+  const e = nextExam();
+  let ex = '';
+  if (e && e.days <= 7) {
+    const from = addDays(e.day, -7), done = (s.boss.history || []).filter((h) => h.date >= from);
+    ex = `<li>📅 <b>Contrôle ${examWhen(e)}</b> (${esc(e.label || 'physique')}) : ${done.length ? `contrôle blanc fait, ${fr(done[done.length - 1].note, 1)}/20.` : e.days <= 2 ? '<b>contrôle blanc pas encore fait</b>, c’est le moment.' : 'l’appli lui propose chaque jour un programme spécial.'}</li>`;
+  }
+  return `<div class="card week ${feu} stack"><h2>Cette semaine</h2><ul><li>${reg}</li><li>📈 ${prog}</li><li>🎯 ${att}</li>${ex}</ul></div>`;
+}
+function trend(s, k) {
+  const h = s.mHist || {}, keys = Object.keys(h).sort(), ref = addDays(todayStr(), -7);
+  const old = keys.filter((d) => d <= ref).pop() || keys[0];
+  if (!old || old === todayStr() || h[old][k] == null) return '';
+  const d = s.mastery[k] - h[old][k];
+  return d > 0 ? `<span class="up" title="+${d} en 7 jours">▲</span>` : d < 0 ? `<span class="down" title="${d} en 7 jours">▼</span>` : '<span class="eq">=</span>';
+}
 async function screenParent() {
   render('<p class="center muted" style="margin-top:40px">Chargement…</p>');
   let data;
@@ -1177,45 +1300,57 @@ async function screenParent() {
   const planOk = Array.isArray(data.plan);
   render(`
     <div class="row between" style="margin-bottom:12px"><h1>Tableau de bord</h1><button class="btn small ghost" id="ref">Actualiser</button></div>
-    ${planCard(planOk)}
-    ${studs.map((st) => {
+    ${studs.map((st, si) => {
       const s = Object.assign(defaultState(), st.state || {});
+      s.mastery = Object.assign(defaultState().mastery, s.mastery);
       const t = st.totals || {};
       const name = s.pseudo || st.label;
       const days = st.days || [];
       const maxN = Math.max(1, ...days.map((d) => d.n));
       const last14 = []; for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const k = d.toISOString().slice(0, 10); const f = days.find((x) => x.day === k); last14.push(f ? f.n : 0); }
+      const d7 = days.filter((d) => dayDiff(d.day, todayStr()) < 7 && d.n > 0).length;
+      const open = SKILLS.filter((k) => isOpen(s, k)), closed = SKILLS.length - open.length;
       return `
+      <div class="row between" style="margin:6px 4px 10px"><h2>${esc(name)}</h2><span class="small muted">Dernière activité : ${fmtDate(t.last)}</span></div>
+      ${weekCard(s, st)}
+      ${si === 0 ? planCard(planOk) : ''}
       <div class="card stack">
-        <div class="row between"><h2>${esc(name)}</h2><span class="small muted">Dernière activité : ${fmtDate(t.last)}</span></div>
         <div class="kpis">
-          <div class="kpi"><span class="small muted">Exercices</span><b>${t.n || 0}</b><span class="small muted">dont ${t.n7 || 0} sur 7 j</span></div>
-          <div class="kpi"><span class="small muted">Réussite 7 j</span><b>${t.n7 ? Math.round(t.ok7 / t.n7 * 100) + ' %' : '—'}</b><span class="small muted">global ${t.n ? Math.round(t.ok / t.n * 100) : 0} %</span></div>
-          <div class="kpi"><span class="small muted">Temps total</span><b>${Math.round((t.ms || 0) / 60000)} min</b><span class="small muted">${s.sessions} séance${s.sessions > 1 ? 's' : ''}</span></div>
-          <div class="kpi"><span class="small muted">Série</span><b>🔥 ${s.streak.count}</b><span class="small muted">niveau ${levelInfo(s.xp).lvl} • ${s.xp} XP</span></div>
-          <div class="kpi"><span class="small muted">À revoir</span><b>${(s.review || []).filter((r) => r.due <= todayStr()).length}</b><span class="small muted">${(s.review || []).length} en file d’attente</span></div>
-          <div class="kpi"><span class="small muted">Rédaction 7 j</span><b>${t.redac7 ? Math.round(t.redacok7 / t.redac7 * 100) + ' %' : '—'}</b><span class="small muted">${t.redac7 || 0} problème(s)</span></div>
-          <div class="kpi"><span class="small muted">Justes au hasard (7 j)</span><b>${t.lucky7 || 0}</b><span class="small muted">faux alors que « sûre » : ${t.surewrong7 || 0}</span></div>
-          <div class="kpi"><span class="small muted">Démarrage</span><b>${s.diagDone ? '✅' : `${(s.diagParts || []).filter(Boolean).length}/3`}</b><span class="small muted">${s.diagDone ? 'bilan terminé' : (s.onboard || 0) < 2 ? 'étapes d’accueil en cours' : 'blocs du bilan faits'}</span></div>
+          <div class="kpi"><span class="small muted">Jours actifs (7 j)</span><b>${d7}/7</b><span class="small muted">${t.n7 || 0} exercices</span></div>
+          <div class="kpi"><span class="small muted">Réussite (7 j)</span><b>${t.n7 ? Math.round(t.ok7 / t.n7 * 100) + ' %' : '—'}</b><span class="small muted">depuis le début : ${t.n ? Math.round(t.ok / t.n * 100) : 0} %</span></div>
+          <div class="kpi"><span class="small muted">À revoir aujourd’hui</span><b>${(s.review || []).filter((r) => r.due <= todayStr()).length}</b><span class="small muted">exercices ratés qui reviennent</span></div>
+          <div class="kpi"><span class="small muted">Contrôle blanc</span><b>${s.boss.best != null ? fr(s.boss.best, 1) + '/20' : '—'}</b><span class="small muted">${s.boss.history.length ? `${s.boss.history.length} essai(s)` : 'pas encore tenté'}</span></div>
         </div>
         <div><b class="small">Activité sur 14 jours</b><div class="days" style="margin-top:6px">${last14.map((n) => `<i style="height:${Math.round(n / maxN * 100)}%" title="${n}"></i>`).join('')}</div></div>
-        <div>
-          <b>Maîtrise par compétence</b>${s.diagDone ? `<span class="small muted"> (évaluation de départ : ${s.diag.score}/${s.diag.total} le ${s.diag.date.split('-').reverse().join('/')})</span>` : '<span class="small muted"> (évaluation de départ pas encore faite)</span>'}
-          <table style="margin-top:6px">${SKILLS.map((k) => `<tr><td>${k.icon} ${k.name}${k.lesson && !((s.cours || {})[k.lesson] || {}).done ? ' <span class="small muted">🔒</span>' : ''}</td><td style="width:35%"><div class="bar"><i style="width:${s.mastery[k.id]}%"></i></div></td><td style="text-align:right">${s.mastery[k.id]}${s.diag && s.diag.skills && s.diag.skills[k.id] != null ? `<span class="small muted"> (départ ${s.diag.skills[k.id]})</span>` : ''}</td></tr>`).join('')}</table>
-        </div>
-        <div><b>Cours lus</b> : ${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `${c.title} ${p.done ? '✅' : (p.seen || []).length ? `(${(p.seen || []).length}/${c.sections.length})` : '—'}`; }).join(' • ')}</div>
-        <div><b>Boss (contrôle blanc)</b> : ${s.boss.best != null ? `record ${fr(s.boss.best, 1)}/20 • ${s.boss.history.length} essai(s)` : 'pas encore tenté'}</div>
-        <div>
-          <b>Erreurs les plus fréquentes (30 j)</b>
-          ${(st.errors || []).filter((e) => e.code !== 'nsp').length ? `<table style="margin-top:6px">${(st.errors || []).slice(0, 6).map((e) => `<tr><td>${esc(ERR_LABELS[e.code] || e.code)}</td><td style="text-align:right"><b>${e.n}</b></td></tr>`).join('')}</table>` : '<p class="small muted">Rien à signaler pour l’instant.</p>'}
-        </div>
+        <details><summary><b>Détails</b> <span class="small muted">(autres indicateurs expliqués)</span></summary>
+          <table style="margin-top:6px">${KPI_HELP.map(([l, f, h]) => `<tr><td><b>${l}</b> : ${f(s, t)}<br><span class="small muted">${h}</span></td></tr>`).join('')}</table></details>
+        <button class="btn ghost" data-pv="${si}">👀 Voir l’appli comme ${esc(name)}</button>
+      </div>
+      <div class="card stack">
+        <h3>Maîtrise par compétence</h3>
+        <table class="mt">${open.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>
+        <p class="small muted" style="margin:0">▲ ▼ = évolution sur 7 jours. Une petite baisse après plusieurs jours sans pratique est normale : c’est l’oubli, qui se rattrape en quelques exercices.${closed ? ` ${closed} compétence${closed > 1 ? 's' : ''} pas encore ouverte${closed > 1 ? 's' : ''} (leçons d’avance).` : ''}</p>
+      </div>
+      <div class="card stack">
+        <h3>Cours lus</h3>
+        <table>${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title}${c.ahead ? ' <span class="small muted">(en avance)</span>' : ''}</td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
+        <h3 style="margin-top:6px">Erreurs les plus fréquentes (30 j)</h3>
+        ${(st.errors || []).filter((e) => e.code !== 'nsp').length ? `<table>${(st.errors || []).filter((e) => e.code !== 'nsp').slice(0, 5).map((e) => `<tr><td>${esc(ERR_LABELS[e.code] || e.code)}</td><td style="text-align:right"><b>${e.n}</b></td></tr>`).join('')}</table>` : '<p class="small muted">Rien à signaler pour l’instant.</p>'}
         <details><summary><b>Derniers exercices</b></summary>
-          <table style="margin-top:6px">${(st.recent || []).map((r) => `<tr><td>${r.correct ? '✅' : '❌'}</td><td><span class="small muted">${fmtDate(r.ts)} • ${esc(r.mode)}</span><br>${esc((r.question || '').slice(0, 140))}<br><span class="small">Réponse : <b>${esc(r.answer)}</b>${r.conf ? ` • ${esc({ sure: 'sûre', hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne sait pas' }[r.conf] || r.conf)}` : ''}${r.error_code ? ` • ${esc(ERR_LABELS[r.error_code] || r.error_code)}` : ''}${r.hints ? ` • ${r.hints} indice(s)` : ''}</span></td></tr>`).join('')}</table>
+          <table style="margin-top:6px">${(st.recent || []).map((r) => `<tr><td>${r.correct ? '✅' : '❌'}</td><td><span class="small muted">${fmtDate(r.ts)} • ${esc(RUN_LABEL[r.mode] || r.mode)}</span><br>${esc((r.question || '').slice(0, 140))}<br><span class="small">Réponse : <b>${esc(r.answer)}</b>${r.conf ? ` • ${esc({ sure: 'sûre', hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne sait pas' }[r.conf] || r.conf)}` : ''}${r.error_code ? ` • ${esc(ERR_LABELS[r.error_code] || r.error_code)}` : ''}${r.hints ? ` • ${r.hints} indice(s)` : ''}</span></td></tr>`).join('')}</table>
         </details>
-      </div>`; }).join('') || '<p>Aucun profil élève.</p>'}
+      </div>`; }).join('') || '<p>Aucun profil élève.</p>' + planCard(planOk)}
     <div class="center"><button class="link" id="out">Se déconnecter</button></div>`);
   document.getElementById('ref').onclick = screenParent;
   document.getElementById('out').onclick = () => logout();
+  $app.querySelectorAll('[data-pv]').forEach((b) => b.onclick = () => {
+    const st = studs[+b.dataset.pv];
+    S = Object.assign(defaultState(), JSON.parse(JSON.stringify(st.state || {})));
+    S.mastery = Object.assign(defaultState().mastery, S.mastery);
+    if (!S.pseudo) S.pseudo = st.label || 'Élève';
+    PREVIEW = true; document.body.classList.toggle('large', false);
+    route();
+  });
   bindPlanCard();
 }
 function planCard(ok) {
@@ -1225,22 +1360,22 @@ function planCard(ok) {
   return `<div class="card stack">
     <h2>📅 Contrôles à venir</h2>
     ${!ok ? '<p class="small" style="color:var(--bad)">La mise à jour du serveur n’est pas encore faite : cette partie sera active juste après.</p>' : ''}
-    ${ex.length ? `<table>${ex.map((e) => `<tr><td><b>${fmt(e.day)}</b> • ${esc(e.label || 'Contrôle')}<br><span class="small muted">${(e.skills || []).map((k) => (SKILLS.find((s) => s.id === k) || {}).short).join(', ') || 'toutes les compétences'}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}">Supprimer</button></td></tr>`).join('')}</table>` : '<p class="small muted">Aucun contrôle saisi. Dès qu’une date est connue, l’appli prépare l’élève : programme ciblé 7 jours avant, contrôle blanc à J-2.</p>'}
+    ${ex.length ? `<table>${ex.map((e) => `<tr><td><b>${fmt(e.day)}</b> • ${esc(e.label || 'Contrôle')}<br><span class="small muted">${(e.skills || []).map((k) => (SKILLS.find((s) => s.id === k) || {}).short).join(', ') || 'toutes les compétences'}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}" data-what="le contrôle du ${fmt(e.day)}">Supprimer</button></td></tr>`).join('')}</table>` : '<p class="small muted">Aucun contrôle saisi. Dès qu’une date est connue, l’appli prépare l’élève : programme ciblé 7 jours avant, contrôle blanc à J-2.</p>'}
     <details><summary><b>+ Ajouter un contrôle</b></summary>
       <div class="stack" style="margin-top:8px">
-        <input type="date" id="exday"><input id="exlabel" maxlength="120" placeholder="Ex. : Contrôle vitesse et distance d’arrêt">
-        <p class="small muted" style="margin:0">Compétences évaluées (laisser vide = toutes) :</p><div class="cks" id="exsk">${skillOpts}</div>
+        <input type="date" id="exday"><input id="exlabel" maxlength="120" placeholder="Titre, ex. : Contrôle vitesse et distance d’arrêt">
+        <details><summary class="small"><b>Préciser les compétences</b> (facultatif, sinon toutes)</summary><div class="cks" id="exsk" style="margin-top:8px">${skillOpts}</div></details>
         <button class="btn" id="exadd">Enregistrer le contrôle</button></div>
     </details>
     <h2 style="margin-top:8px">📝 Erreurs relevées sur les copies</h2>
-    <p class="small muted" style="margin:0">Chaque erreur saisie part dans « À revoir » dès la prochaine connexion de l’élève (J0, puis J+1, J+3, J+7, J+21). Tu peux aussi envoyer la photo de la copie à Claude, qui les saisit pour toi.</p>
-    ${cp.length ? `<table>${cp.slice(-8).reverse().map((e) => `<tr><td>${esc(e.label || '')}<br><span class="small muted">${(e.skills || []).map((k) => (SKILLS.find((s) => s.id === k) || {}).short).join(', ')} • ${esc(ERR_LABELS[e.error_code] || e.error_code || '')}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}">Supprimer</button></td></tr>`).join('')}</table>` : ''}
-    <details><summary><b>+ Ajouter une erreur de copie</b></summary>
+    <div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée à Claude, qui relève les erreurs pour toi.</div>
+    <p class="small muted" style="margin:0">Chaque erreur saisie revient dans « À revoir » dès la prochaine connexion, puis à J+1, J+3, J+7 et J+21.</p>
+    ${cp.length ? `<table>${cp.slice(-8).reverse().map((e) => `<tr><td>${esc(e.label || '')}<br><span class="small muted">${esc(ERR_LABELS[e.error_code] || e.error_code || '')}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}" data-what="l’erreur « ${esc(e.label || '')} »">Supprimer</button></td></tr>`).join('')}</table>` : ''}
+    <details><summary><b>+ Ajouter une erreur à la main</b></summary>
       <div class="stack" style="margin-top:8px">
-        <input id="cplabel" maxlength="120" placeholder="Ex. : Contrôle du 12/11, exercice 3">
-        <select id="cpskill">${SKILLS.map((k) => `<option value="${k.id}">${k.icon} ${k.name}</option>`).join('')}</select>
-        <select id="cperr">${Object.entries(ERR_LABELS).filter(([k]) => !['nsp', 'hasard', 'copie'].includes(k)).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
-        <select id="cplv"><option value="1">Niveau facile</option><option value="2" selected>Niveau moyen</option><option value="3">Niveau difficile</option></select>
+        <input id="cplabel" maxlength="120" placeholder="Exercice, ex. : contrôle du 12/11, exercice 3">
+        <label class="small muted" for="cptype" style="margin:0">Ce qui n’allait pas :</label>
+        <select id="cptype">${COPY_TYPES.map(([t], i) => `<option value="${i}">${esc(t)}</option>`).join('')}</select>
         <button class="btn" id="cpadd">Enregistrer l’erreur</button></div>
     </details>
   </div>`;
@@ -1251,7 +1386,7 @@ function bindPlanCard() {
       const r = await rpc('rv_plan_add', Object.assign({ p_token: token, p_day: null, p_label: null, p_skills: [], p_level: 2, p_error_code: null }, args));
       if (r.error) return toast(r.error === 'auth' ? 'Reconnecte-toi.' : 'Erreur : ' + r.error);
       toast('Enregistré ✓'); screenParent();
-    } catch (e) { toast('Impossible pour l’instant (mise à jour du serveur en attente ou pas de connexion).'); }
+    } catch (e) { toast('Impossible pour l’instant (pas de connexion ?).'); }
   };
   const ea = document.getElementById('exadd');
   if (ea) ea.onclick = () => {
@@ -1261,9 +1396,12 @@ function bindPlanCard() {
       p_skills: [...document.querySelectorAll('#exsk input:checked')].map((x) => x.value) });
   };
   const ca = document.getElementById('cpadd');
-  if (ca) ca.onclick = () => add({ p_kind: 'copie', p_label: document.getElementById('cplabel').value.trim() || 'Erreur de contrôle',
-    p_skills: [document.getElementById('cpskill').value], p_level: +document.getElementById('cplv').value, p_error_code: document.getElementById('cperr').value });
+  if (ca) ca.onclick = () => {
+    const [txt, skill, code] = COPY_TYPES[+document.getElementById('cptype').value];
+    add({ p_kind: 'copie', p_label: document.getElementById('cplabel').value.trim() || txt, p_skills: [skill], p_level: 2, p_error_code: code });
+  };
   $app.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
+    if (!confirm(`Supprimer ${b.dataset.what || 'cet élément'} ?`)) return;
     try { await rpc('rv_plan_del', { p_token: token, p_id: b.dataset.del }); toast('Supprimé'); screenParent(); } catch (e) { toast('Impossible pour l’instant.'); }
   });
 }
@@ -1303,6 +1441,8 @@ async function boot() {
   document.body.classList.toggle('large', !!S.large);
   if (S.diagDone && !S.onboard) S.onboard = 2;
   applyDecay();
+  S.mHist = S.mHist || {}; S.mHist[todayStr()] = Object.assign({}, S.mastery); // photo du jour pour les flèches ▲ ▼ du parent
+  Object.keys(S.mHist).sort().slice(0, -15).forEach((k) => delete S.mHist[k]);
   mergeCopies();
   saveState(); flush();
   route();

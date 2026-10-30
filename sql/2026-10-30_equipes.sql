@@ -206,3 +206,7 @@ end $$;
 grant execute on function rv_team_mine(uuid), rv_team_create(uuid, text), rv_team_join(uuid, text), rv_team_leave(uuid, uuid),
   rv_team_parent(uuid), rv_team_allow(uuid, boolean), rv_team_initial(uuid, uuid, text), rv_team_kick(uuid, uuid, uuid),
   rv_team_join_child(uuid, uuid, text) to anon;
+
+-- Version installée le 30/10 (sans suppression) : rv_team_allow change seulement teams_ok,
+-- et rv_team_board n'affiche que les élèves dont la famille a teams_ok = true.
+-- rv_team_leave et rv_team_kick restent à installer (confirmation Supabase requise).

@@ -1785,7 +1785,7 @@ function accessCard(st) {
       <input class="field" data-pinin="${st.id}" maxlength="4" inputmode="numeric" placeholder="Nouveau code" autocomplete="off">
       <button class="btn ghost" data-pinset="${st.id}">Enregistrer le code</button>
       <button class="btn ghost" data-renew="${st.id}" data-name="${esc(name)}">🔄 Créer un nouveau lien (l’ancien ne marchera plus)</button>
-      <button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}">Supprimer le profil de ${esc(name)} et ses données</button>
+      <button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}" data-n="${(st.totals || {}).n || 0}" data-last="${(st.totals || {}).last || ''}" data-ndev="${dev.length}">Supprimer le profil de ${esc(name)} et ses données</button>
     </div></details>
   </div>`;
 }
@@ -1878,8 +1878,18 @@ function bindParent(st) {
     shareText(APP_NAME, `${b.dataset.name}, voici ton nouveau lien pour réviser la physique :`, childUrl(r.secret));
   });
   $app.querySelectorAll('[data-cdel]').forEach((b) => b.onclick = async () => {
-    if (!await ask({ title: `Supprimer le profil de ${b.dataset.name} ?`, text: 'Ses progrès et toutes ses réponses seront effacés définitivement.', ok: 'Supprimer définitivement', danger: true })) return;
-    if (await call('rv_child_del', { p_child: b.dataset.cdel }, 'Profil supprimé')) { PV.child = null; savePV(); screenParent(); }
+    const nm = b.dataset.name, n = +b.dataset.n || 0, nd = +b.dataset.ndev || 0;
+    const lost = n ? `<b>${n} exercice${n > 1 ? 's' : ''}</b> (dernier le ${fmtDay(b.dataset.last)}), ses médailles, ses contrôles et ses erreurs de copie` : 'ce profil (aucun exercice fait pour l’instant), ses contrôles et ses erreurs de copie';
+    const txt = `Seront effacés définitivement : ${lost}.${nd ? ` ${nd} appareil${nd > 1 ? 's seront déconnectés' : ' sera déconnecté'}.` : ''} Rien ne pourra être récupéré.`;
+    let conf = null;
+    if (n) {
+      conf = await ask({ title: `Supprimer le profil de ${esc(nm)} ?`, text: txt + `<br><br>Pour confirmer, tape son prénom : <b>${esc(nm)}</b>`, input: 'Prénom', ok: 'Supprimer définitivement', danger: true });
+      if (!conf) return;
+      const norm = (x) => String(x).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (norm(conf) !== norm(nm)) { toast('Le prénom ne correspond pas : rien n’a été supprimé.'); return; }
+    } else if (!await ask({ title: `Supprimer le profil de ${esc(nm)} ?`, text: txt, ok: 'Supprimer définitivement', danger: true })) return;
+    const r = await call('rv_child_del', { p_child: b.dataset.cdel, p_confirm: conf }, null);
+    if (r) { toast(r.ok ? 'Profil supprimé' : 'Ce profil n’existe plus.'); PV.child = null; savePV(); screenParent(); }
   });
   // E-mails, invitations, compte
   $app.querySelectorAll('input[name="notify"]').forEach((i) => i.onchange = () => { FAM.notify = i.value; DASH.family.notify = i.value; call('rv_family_set', { p_notify: i.value, p_weekly: null }, 'Réglage enregistré ✓'); });

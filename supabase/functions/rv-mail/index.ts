@@ -53,12 +53,12 @@ ${cta ? `<p style="margin:24px 0 6px"><a href="${cta.href}" style="background:#5
 </td></tr></table></body></html>`;
 }
 
-async function send(to: string, subject: string, html: string, text: string, tag: string) {
+async function send(to: string, subject: string, html: string, text: string, tag: string, replyTo?: string) {
   if (!BREVO) throw new Error('BREVO_API_KEY manquante');
   const r = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': BREVO, 'Content-Type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ sender: SENDER, to: [{ email: to }], subject, htmlContent: html, textContent: text, tags: [tag] }),
+    body: JSON.stringify({ sender: SENDER, to: [{ email: to }], subject, htmlContent: html, textContent: text, tags: [tag], ...(replyTo ? { replyTo: { email: replyTo } } : {}) }),
   });
   if (!r.ok) throw new Error(`brevo ${r.status} ${await r.text()}`);
 }
@@ -124,6 +124,21 @@ Deno.serve(async (req) => {
           { href: APP_URL, label: 'Voir le tableau de bord' }),
         `${r.child} a commencé une séance à ${hhmm()}. ${APP_URL}`, 'session');
       return json({ ok: true, sent: true });
+    }
+
+    if (body.action === 'question') {
+      const r = await rpc('rv_question_add', { p_token: body.token || null, p_email: body.email ? String(body.email) : null, p_text: String(body.text || ''), p_ctx: body.ctx ? String(body.ctx) : null });
+      if (r.error) return json({ error: r.error });
+      const who = r.role === 'parent' ? 'Un parent' : r.role === 'visiteur' ? 'Un visiteur' : `${r.child || 'Un élève'} (élève)`;
+      const q = esc(String(body.text || '').trim()).replace(/\n/g, '<br>');
+      await send(r.to, `Question d’aide – ${r.role === 'parent' ? 'parent' : r.role === 'visiteur' ? 'visiteur' : r.child || 'élève'}`,
+        layout('Nouvelle question dans l’appli',
+          `<p><b>${esc(who)}</b> (${esc(r.reply)}) a posé une question depuis la bulle d’aide :</p>
+           <blockquote style="margin:12px 0;padding:12px 14px;background:#f4f2fb;border-radius:10px">${q}</blockquote>
+           ${body.ctx ? `<p style="color:#77738f;font-size:13px">Écran : ${esc(String(body.ctx))}</p>` : ''}
+           <p>Réponds simplement à cet e-mail : la réponse partira à ${esc(r.reply)}${r.role === 'student' ? ' (adresse du parent)' : ''}.</p>`),
+        `${who} (${r.reply}) : ${String(body.text || '').trim()}`, 'question', r.reply);
+      return json({ ok: true });
     }
 
     if (body.action === 'evening' || body.action === 'weekly') {

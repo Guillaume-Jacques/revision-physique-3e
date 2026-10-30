@@ -492,7 +492,13 @@ function screenPicker() {
     <div class="center" style="margin-top:14px"><button class="link" id="padd">+ Se connecter avec un autre compte (parent ou élève)</button></div>`);
   $app.querySelectorAll('.pick').forEach((b) => b.onclick = () => {
     const a = ACCTS[+b.dataset.i];
-    if (a.role !== 'parent' && a.pin) return screenUnlock(a);
+    if (a.role !== 'parent' && a.pin) {
+      // Le code a peut-être été supprimé par le parent : on vérifie avant de le demander
+      return rpc('rv_unlock', { p_token: a.token, p_pin: '' }).then((r) => {
+        if (r && r.ok) { a.pin = false; saveAccts(); useAcct(a); UNLOCKED = true; return boot(); }
+        screenUnlock(a);
+      }).catch(() => screenUnlock(a));
+    }
     useAcct(a); UNLOCKED = true; boot();
   });
   document.getElementById('padd').onclick = () => screenLanding();

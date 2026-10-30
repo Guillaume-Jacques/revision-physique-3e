@@ -506,8 +506,9 @@ function screenUnlock(a, err) {
     <div class="pin-dots" id="dots">${'<span></span>'.repeat(4)}</div>
     <p class="center" id="pinmsg" style="min-height:1.5em;color:var(--bad);font-weight:700">${err || ''}</p>
     <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-n="${n}">${n}</button>`).join('')}<span></span><button data-n="0">0</button><button data-n="del" aria-label="Effacer">⌫</button></div>
-    <div class="center"><button class="link" id="ub">← Changer de profil</button></div>`);
+    <div class="center stack" style="gap:6px"><button class="link" id="uf">Code oublié ?</button><button class="link" id="ub">← Changer de profil</button></div>`);
   document.getElementById('ub').onclick = screenPicker;
+  document.getElementById('uf').onclick = () => ask({ title: 'Code oublié ?', text: `Un parent peut en choisir un nouveau : Espace parent › Réglages › « Autres réglages de ${a.name} » › Code à 4 chiffres.`, ok: ACCTS.some((x) => x.role === 'parent') ? 'Ouvrir l’espace parent' : 'Compris' }).then((y) => { const par = ACCTS.find((x) => x.role === 'parent'); if (y && par) { useAcct(par); UNLOCKED = true; PV.tab = 'reglages'; savePV(); boot(); } });
   const dots = () => document.querySelectorAll('#dots span').forEach((d, i) => d.classList.toggle('on', i < pin.length));
   $app.querySelectorAll('.pad button').forEach((b) => b.onclick = async () => {
     const n = b.dataset.n;

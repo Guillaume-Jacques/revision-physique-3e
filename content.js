@@ -114,7 +114,8 @@ const FICHES = {
       '<b>Distance de réaction dr</b> : parcourue entre le moment où on voit l’obstacle et le moment où on freine, à vitesse constante. dr = v × tr.',
       '<b>Distance de freinage df</b> : parcourue pendant le freinage.',
       '<b>Distance d’arrêt</b> : da = dr + df.',
-      'Réaction : allongée par l’alcool, la fatigue, le téléphone, la vitesse. Freinage : allongé par la vitesse, la route mouillée, les pneus, les freins, la charge.',
+      '<b>Temps</b> de réaction : allongé par l’alcool, la fatigue, le téléphone. <b>Distance</b> de réaction : plus grande si la vitesse augmente (on parcourt plus de mètres pendant le même temps).',
+      'Distance de freinage : plus grande avec la vitesse, la route mouillée, des pneus ou des freins usés, une charge lourde.',
       'Si df = k × v², la vitesse doit être en <b>m/s</b> et on n’oublie pas le carré.',
     ],
     formula: 'da = dr + df  •  dr = v × tr',
@@ -720,12 +721,12 @@ function genV8(level) {
 const GENERATORS = { V1: genV1, V2: genV2, V3: genV3, V4: genV4, V5: genV5, V6: genV6, V7: genV7, V8: genV8 };
 function generate(skill, level) { return GENERATORS[skill](Math.max(1, Math.min(3, level))); }
 
-/* ---------- Évaluation de départ (14 questions, facile → difficile) ---------- */
+/* ---------- Évaluation de départ (15 questions, facile → difficile, en 3 blocs de 5) ---------- */
 const DIAG_PLAN = [
   ['V1', 1], ['V2', 1], ['V3', 1], ['V4', 1], ['V6', 1], ['V7', 1], ['V1', 2],
   ['V2', 2], ['V3', 2], ['V4', 2], ['V5', 2], ['V6', 3], ['V2', 3], ['V7', 3], ['V8', 2],
 ];
-function buildDiagnostic() { return DIAG_PLAN.map(([s, l]) => generate(s, l)); }
+function buildDiagnostic(block) { const plan = block == null ? DIAG_PLAN : DIAG_PLAN.slice(block * 5, block * 5 + 5); return plan.map(([s, l]) => generate(s, l)); }
 
 /* ---------- Cartes formules (débloquées au bronze) ---------- */
 const CARDS = {

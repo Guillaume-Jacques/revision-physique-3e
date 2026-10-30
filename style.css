@@ -173,3 +173,29 @@ td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 
 .tbl.c { font-size: .82em; table-layout: fixed; }
 .tbl.c td, .tbl.c th { overflow-wrap: anywhere; padding: 6px 3px; }
+
+/* ---------- Ajouts du 30/10 : confiance, rédaction, révisions, contrôles ---------- */
+.choice.sel { border-color: var(--accent); background: var(--accent-soft); }
+.choice:disabled { opacity: .55; }
+.conf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.conf .btn { width: 100%; padding: 8px 6px; font-size: .88em; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.card.exam { border: 2px solid var(--warn); background: var(--warn-soft); }
+.card.rv { border: 2px solid var(--accent-2); }
+.skill.locked { opacity: .65; border-style: dashed; }
+.pill.tiny { padding: 1px 8px; font-size: .72em; vertical-align: middle; }
+.onb { margin: 0 0 6px; padding-left: 22px; } .onb li { margin: 4px 0; }
+.steps-wrap { margin: 12px 0; }
+.step { border-left: 4px solid var(--line); padding: 8px 12px; margin: 8px 0; border-radius: 0 10px 10px 0; background: var(--bg); }
+.step.given { border-color: var(--muted); opacity: .85; }
+.step.ok { border-color: var(--good); background: var(--good-soft); }
+.step.ko { border-color: var(--warn); background: var(--warn-soft); }
+.step.cur { border-color: var(--accent); background: var(--card); box-shadow: var(--shadow); }
+.units { display: flex; gap: 8px; flex-wrap: wrap; }
+.chipbtn { padding: 8px 16px; border-radius: 999px; border: 2px solid var(--line); background: var(--card); color: var(--ink); font-weight: 800; min-height: 44px; }
+.chipbtn.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.lessonc.cont { border-top: 3px solid var(--accent-soft); }
+.cks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.ck { font-size: .9em; display: inline-flex; gap: 6px; align-items: center; }
+input[type=date], #exlabel, #cplabel, select { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }

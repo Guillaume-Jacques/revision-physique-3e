@@ -378,10 +378,29 @@ function screenMailSent(email) {
     <div class="card stack center">
       <div style="font-size:48px">📬</div>
       <h2>Regarde ta boîte mail</h2>
-      <p>Un lien de connexion vient de partir vers <b>${esc(email)}</b>. Touche-le sur cet appareil : il fonctionne 30 minutes.</p>
-      <p class="small muted">Rien reçu après 2 minutes ? Regarde dans les courriers indésirables.</p>
+      <p>Un e-mail vient de partir vers <b>${esc(email)}</b>. Il contient un <b>code à 6 chiffres</b> : tape-le ici.</p>
+      <div class="answer"><input id="mcode" maxlength="7" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" style="text-align:center;font-size:24px;letter-spacing:6px"></div>
+      <p class="small" id="mmsg" style="min-height:1.3em;margin:0"></p>
+      <button class="btn" id="mgo">Me connecter</button>
+      <p class="small muted">${isStandalone() ? 'Utilise le code plutôt que le bouton de l’e-mail : le bouton ouvre le navigateur, pas cette appli.' : 'Tu peux aussi toucher le bouton de l’e-mail sur cet appareil.'} Le code fonctionne 30 minutes. Rien reçu après 2 minutes ? Regarde dans les courriers indésirables.</p>
       <button class="btn ghost" id="mback">Changer d’adresse ou renvoyer</button>
     </div>`);
+  const inp = document.getElementById('mcode'), m = document.getElementById('mmsg'), b = document.getElementById('mgo');
+  const go = async () => {
+    const c = inp.value.replace(/\D/g, '');
+    if (c.length !== 6) { m.style.color = 'var(--bad)'; m.textContent = 'Le code fait 6 chiffres.'; return; }
+    b.disabled = true; m.style.color = 'var(--muted)'; m.textContent = 'Vérification…';
+    try {
+      const r = await rpc('rv_magic_code', { p_email: email, p_code: c, p_label: deviceLabel() });
+      if (r.token) return addAcct({ token: r.token, role: 'parent', name: 'Espace parent', pin: false });
+      b.disabled = false; m.style.color = 'var(--bad)';
+      m.textContent = { bad_code: 'Code incorrect, vérifie et réessaie.', locked: 'Trop d’essais. Demande un nouvel e-mail ci-dessous.', no_code: 'Ce code a expiré ou a déjà servi. Demande un nouvel e-mail ci-dessous.', bad_invite: 'Ce code d’invitation n’est plus valable.' }[r.error] || 'Connexion impossible. Demande un nouvel e-mail.';
+    } catch (e) { b.disabled = false; m.style.color = 'var(--bad)'; m.textContent = 'Pas de connexion internet.'; }
+  };
+  b.onclick = go;
+  inp.oninput = () => { if (inp.value.replace(/\D/g, '').length === 6) go(); };
+  inp.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  setTimeout(() => inp.focus(), 50);
   document.getElementById('mback').onclick = () => screenParentLogin({ email });
 }
 /* Liens reçus : #m= (connexion du parent) ou #j= (appareil de l'enfant) */
@@ -1622,7 +1641,8 @@ const HELP_QA = [
   ['Comment mon enfant se connecte-t-il ?', 'Tu lui envoies son lien personnel (bouton « 📲 Envoyer le lien », dans « Accès de… »). Il l’ouvre <b>une seule fois</b> sur son téléphone, sa tablette ou son ordinateur. Cet appareil est alors reconnu : la fois suivante, l’appli s’ouvre directement sur son espace, sans mot de passe à retenir.'],
   ['À quoi sert le code à 4 chiffres ?', 'Il ne sert que lorsque <b>plusieurs profils sont enregistrés sur le même appareil</b> : une tablette familiale, un ordinateur partagé, ou ton propre téléphone sur lequel tu as aussi ton espace parent. L’appli demande alors « Qui se connecte ? » et le profil protégé (🔒) n’ouvre qu’avec son code. Cela évite qu’un frère, une sœur ou un parent réponde à sa place et fausse sa progression.'],
   ['Faut-il mettre un code ?', 'Non, c’est facultatif. Si ton enfant révise uniquement sur son propre téléphone, laisse le champ vide : il n’aura jamais rien à taper. Tu peux ajouter ou changer le code plus tard dans « Accès de… » › « Autres réglages ».'],
-  ['Et sur un ordinateur ?', 'Touche « 💻 Afficher un code pour un ordinateur » : un code temporaire s’affiche. Ton enfant le tape une fois sur l’ordinateur, qui est ensuite reconnu comme son téléphone.'],
+  ['L’appli est installée sur l’écran d’accueil : pourquoi le lien ne suffit pas ?', 'Sur un téléphone, l’appli installée garde sa propre mémoire, séparée du navigateur. Un lien touché dans un e-mail ou WhatsApp s’ouvre dans le navigateur, pas dans l’appli. Dans l’appli installée, on se connecte donc avec un <b>code</b> : pour toi, le code à 6 chiffres de l’e-mail de connexion ; pour ton enfant, le bouton « 🔢 Afficher un code » de « Accès de… ». Ensuite, l’appli s’ouvre directement.'],
+  ['Et sur un ordinateur ?', 'Même principe : touche « 🔢 Afficher un code », puis ton enfant le tape une fois sur l’ordinateur, qui est ensuite reconnu.'],
   ['Un appareil a été perdu ou prêté ?', 'Dans « Accès de… », touche « Retirer » à côté de l’appareil : il ne pourra plus ouvrir l’appli. En cas de doute, « Créer un nouveau lien » désactive l’ancien lien.'],
   ['Puis-je voir ce que fait mon enfant ?', 'Oui : « 👀 Voir l’appli comme… » t’ouvre son appli telle qu’il la voit, sans rien enregistrer. Le tableau de bord résume sa semaine, et tu reçois les e-mails choisis dans la rubrique « ✉️ E-mails ».'],
 ];
@@ -1644,7 +1664,7 @@ function accessCard(st, s) {
     <summary><b>📱 Accès de ${esc(name)}</b> <span class="small muted">${dev.length ? `${dev.length} appareil${dev.length > 1 ? 's' : ''}` : 'aucun appareil pour l’instant'}</span></summary>
     ${dev.length ? '' : `<div class="tip">Envoie-lui son lien : il ou elle l’ouvre <b>une fois</b> sur son téléphone, sa tablette ou son ordinateur, et l’appli s’ouvrira ensuite directement.</div>`}
     <button class="btn" data-share="${st.id}" data-name="${esc(name)}">📲 Envoyer le lien à ${esc(name)}</button>
-    <button class="btn ghost" data-code="${st.id}">💻 Afficher un code pour un ordinateur</button>
+    <button class="btn ghost" data-code="${st.id}">🔢 Afficher un code (appli installée ou ordinateur)</button>
     <div class="codebox" id="code-${st.id}" hidden></div>
     ${dev.length ? `<table>${dev.map((d) => `<tr><td>${esc(d.label || 'Appareil')}<br><span class="small muted">Dernière utilisation : ${fmtDay(d.last)}</span></td><td style="text-align:right"><button class="link" data-dev="${d.id}" data-what="${esc(d.label || 'cet appareil')}">Retirer</button></td></tr>`).join('')}</table>` : ''}
     <details><summary class="small"><b>Autres réglages</b></summary><div class="stack" style="margin-top:8px">
@@ -1705,7 +1725,7 @@ function bindParentExtras(studs) {
     const r = await call('rv_child_code', { p_child: b.dataset.code }); if (!r) return;
     const box = document.getElementById('code-' + b.dataset.code);
     box.hidden = false;
-    box.innerHTML = `<p class="small" style="margin:0">Sur l’ordinateur, ouvre <b>${esc(location.host)}</b>, choisis « Je suis élève » puis tape :</p><div class="bigcode">${r.code}</div><p class="small muted" style="margin:0">Valable ${r.minutes} minutes, une seule fois.</p>`;
+    box.innerHTML = `<p class="small" style="margin:0">Dans l’appli installée sur son écran d’accueil (ou sur l’ordinateur, à l’adresse <b>${esc(location.host)}</b>), choisir « Je suis élève » puis taper :</p><div class="bigcode">${r.code}</div><p class="small muted" style="margin:0">Valable ${r.minutes} minutes, une seule fois.</p>`;
   });
   $app.querySelectorAll('[data-dev]').forEach((b) => b.onclick = async () => {
     if (!confirm(`Retirer « ${b.dataset.what} » ? Il faudra renvoyer le lien pour l’utiliser à nouveau.`)) return;

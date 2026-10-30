@@ -398,3 +398,8 @@ revoke all on function rv_digest(text) from public, anon, authenticated;
 revoke all on function rv_new_session(uuid, text) from public, anon, authenticated;
 revoke all on function rv_plan_rows(uuid) from public, anon, authenticated;
 grant execute on function rv_magic_create(text, text, boolean), rv_notify_session(uuid), rv_digest(text) to service_role;
+
+-- ---------- 30/10 : code à 6 chiffres dans l'e-mail de connexion (appli installée sur l'écran d'accueil) ----------
+-- migration Supabase « magic_code_appli_installee » : colonnes rv_magic.code / tries,
+-- rv_magic_create renvoie aussi `code`, nouvelle RPC publique rv_magic_code(p_email, p_code, p_label)
+-- (5 essais max par e-mail, puis il faut redemander un e-mail ; réutilise rv_magic_use).

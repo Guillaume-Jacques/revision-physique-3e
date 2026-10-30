@@ -98,12 +98,14 @@ Deno.serve(async (req) => {
       const r = await rpc('rv_magic_create', { p_email: String(body.email || ''), p_invite: body.invite ? String(body.invite) : null, p_consent: !!body.consent });
       if (r.error) return json({ error: r.error });
       const link = `${APP_URL}#m=${r.token}`;
-      await send(r.email, r.new ? `Bienvenue sur ${APP_NAME}` : `Ton lien de connexion à ${APP_NAME}`,
+      await send(r.email, r.new ? `Bienvenue sur ${APP_NAME} – code ${r.code}` : `${r.code} : ton code de connexion à ${APP_NAME}`,
         layout(r.new ? 'Bienvenue ! Confirme ton adresse' : 'Ton lien de connexion',
-          `<p>Touche le bouton ci-dessous pour ouvrir ton espace parent. Ce lien fonctionne pendant <b>30 minutes</b>, une seule fois.</p>
+          `<p>Touche le bouton ci-dessous pour ouvrir ton espace parent. Il fonctionne pendant <b>30 minutes</b>, une seule fois.</p>
+           <p style="margin:18px 0 6px"><b>Tu utilises l’appli installée sur ton téléphone ?</b> Tape plutôt ce code dans l’appli :</p>
+           <p style="font-size:30px;font-weight:bold;letter-spacing:6px;margin:0 0 6px;color:#5b3df5">${r.code}</p>
            <p style="color:#77738f;font-size:13px">Si tu n’as rien demandé, ignore simplement cet e-mail.</p>`,
           { href: link, label: r.new ? 'Créer mon espace parent' : 'Me connecter' }),
-        `Ton lien de connexion (valable 30 minutes) : ${link}`, 'magic');
+        `Ton code de connexion : ${r.code} (à taper dans l'appli). Ou ton lien (valable 30 minutes) : ${link}`, 'magic');
       return json({ ok: true, new: r.new });
     }
 

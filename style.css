@@ -256,3 +256,44 @@ input[type=date], #exlabel, #cplabel, select { width: 100%; font: inherit; paddi
 details.card > summary { cursor: pointer; list-style-position: inside; }
 details.card[open] > summary { margin-bottom: 4px; }
 .access table td { padding: 6px 0; }
+
+/* ---------- Espace parent v2 (audit du 30/10 après-midi) : onglets, choix de l'enfant ---------- */
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .6; font-weight: 600; }
+.answer input::placeholder { font-size: .8em; }
+.pz { padding-bottom: 84px; }
+.phead { margin: 2px 2px 12px; font-size: .95em; }
+.logo-s { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 16px; }
+.kids { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 14px; padding: 2px 16px 4px; scrollbar-width: none; }
+.kids::-webkit-scrollbar { display: none; }
+.kid { flex: none; padding: 9px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--ink); font-weight: 800; box-shadow: var(--shadow); }
+.kid.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ptitle { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 0 4px 10px; }
+.ptitle h1 { margin: 0; }
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; display: flex; justify-content: center; background: var(--card); border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 18px rgba(28,24,56,.06); }
+.tabbar button { flex: 1; max-width: 200px; background: none; color: var(--muted); font-weight: 800; font-size: .78em; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 12px; }
+.tabbar button span { font-size: 1.45em; line-height: 1.1; filter: grayscale(1); opacity: .7; }
+.tabbar button.on { color: var(--accent); background: var(--accent-soft); }
+.tabbar button.on span { filter: none; opacity: 1; }
+.kpis.two { grid-template-columns: 1fr 1fr; }
+.days2 { display: flex; gap: 3px; height: 86px; margin-top: 8px; }
+.days2 > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 4px; min-width: 0; }
+.days2 i { display: block; background: var(--accent); border-radius: 4px 4px 0 0; }
+.days2 i.zero { background: var(--line); border-radius: 2px; }
+.days2 span { font-size: .62em; color: var(--muted); text-align: center; font-weight: 700; line-height: 1; height: 12px; }
+.days2 .today span { color: var(--accent); font-weight: 900; }
+.field { width: 100%; font: inherit; padding: 11px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); }
+.field:focus { outline: none; border-color: var(--accent); }
+textarea.field { resize: none; font-size: .9em; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg label { flex: 1; min-width: 90px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; text-align: center; padding: 9px 8px; border-radius: 12px; border: 2px solid var(--line); font-weight: 800; font-size: .88em; cursor: pointer; }
+.seg input:checked + span { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); }
+.cks.col { flex-direction: column; gap: 8px; }
+.ck.line { font-size: .95em; }
+td.tact { text-align: right; vertical-align: top; width: 1%; white-space: nowrap; }
+.more { background: none; color: var(--muted); font-size: 1.3em; font-weight: 900; line-height: 1; padding: 4px 10px; border-radius: 10px; }
+.more:active { background: var(--accent-soft); }
+.btn.bad { background: var(--bad); box-shadow: 0 4px 0 #9b2a23; }
+.pending { border: 2px dashed var(--accent-2); }

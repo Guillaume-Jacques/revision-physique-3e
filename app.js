@@ -52,6 +52,7 @@ const kState = () => 'rv_state_' + (token || '').slice(0, 8);
 const kQueue = () => 'rv_queue_' + (token || '').slice(0, 8);
 const kAct = () => 'rv_act_' + (token || '').slice(0, 8);
 const curAcct = () => ACCTS.find((a) => a.token === token) || {};
+const GEN = () => PREVIEW ? PREVIEW_G : curAcct().g; // genre de l'élève : 'f', 'm' ou null
 function saveAccts() { LS.set('rv_accts', ACCTS); }
 function useAcct(a) {
   token = a.token; role = a.role; LS.set('rv_token', token); LS.set('rv_role', role);
@@ -267,7 +268,7 @@ function render(html) {
   window.scrollTo(0, 0);
   const pv = document.getElementById('pvexit'); if (pv) pv.onclick = exitPreview;
 }
-function exitPreview() { stopTimer(); PREVIEW = false; RUN = null; S = null; PLAN = []; screenParent(); }
+function exitPreview() { stopTimer(); PREVIEW = false; PREVIEW_G = null; RUN = null; S = null; PLAN = []; screenParent(true); }
 
 /* ---------- Accueil : élève ou parent ---------- */
 function brandHead(sub) {
@@ -284,7 +285,7 @@ function screenLanding(msg) {
     </div>
     <div class="card stack how">
       <h3>Comment ça marche ?</h3>
-      <div class="howstep"><span>1</span><p><b>Le parent crée son espace</b> avec son adresse e-mail. Pas de mot de passe : il reçoit un lien.</p></div>
+      <div class="howstep"><span>1</span><p><b>Le parent crée son espace</b> avec son adresse e-mail. Pas de mot de passe : il reçoit un code par e-mail.</p></div>
       <div class="howstep"><span>2</span><p><b>Il ajoute son enfant</b> et lui envoie son lien d’accès par message. L’enfant l’ouvre une fois, c’est tout.</p></div>
       <div class="howstep"><span>3</span><p><b>L’enfant révise 10 minutes par jour</b> : cours, exercices, contrôles blancs. Le parent suit ses progrès et reçoit un e-mail à chaque séance s’il le souhaite.</p></div>
     </div>
@@ -335,7 +336,7 @@ function screenParentLogin(st) {
     ${brandHead('')}
     <div class="card stack">
       <h2>Espace parent</h2>
-      <p class="small muted" style="margin:0">Pas de mot de passe : tu reçois un lien de connexion par e-mail.</p>
+      <p class="small muted" style="margin:0">Pas de mot de passe : tu reçois un code de connexion par e-mail.</p>
       <label class="small" for="pmail"><b>Ton adresse e-mail</b></label>
       <div class="answer"><input id="pmail" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="prenom@exemple.fr" value="${esc(st.email || '')}"></div>
       <div id="pinv" ${st.invite ? '' : 'hidden'} class="stack">
@@ -345,7 +346,7 @@ function screenParentLogin(st) {
         <label class="ck consent"><input type="checkbox" id="pok"> <span>Je suis le parent ou le responsable légal de l’enfant. J’accepte que ses réponses et ses progrès soient enregistrés pour le suivi de ses révisions, comme expliqué dans la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</span></label>
       </div>
       <p class="small" id="pmsg" style="color:var(--bad);font-weight:700;margin:0;min-height:1.2em">${st.err || ''}</p>
-      <button class="btn" id="pgo">Recevoir mon lien</button>
+      <button class="btn" id="pgo">Recevoir mon code</button>
     </div>
     <div class="center"><button class="link" id="pback">← Retour</button></div>
     ${legal()}`);
@@ -640,7 +641,7 @@ function openSettings() {
   if (si) si.onclick = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; close(); return; } const h = document.getElementById('sHow'); h.innerHTML = installHow(); h.hidden = false; };
   const sw = document.getElementById('sSw'); if (sw) sw.onclick = () => { close(); switchProfile(); };
   const sa = document.getElementById('sAdd'); if (sa) sa.onclick = () => { close(); stopTimer(); screenLanding(); };
-  document.getElementById('sOut').onclick = () => { if (PREVIEW) { close(); return exitPreview(); } if (!confirm('Retirer ton profil de cet appareil ? Tes progrès restent enregistrés ; il faudra un nouveau lien de ton parent pour revenir.')) return; close(); logout(); };
+  document.getElementById('sOut').onclick = async () => { if (PREVIEW) { close(); return exitPreview(); } close(); if (!await ask({ title: 'Retirer ton profil de cet appareil ?', text: 'Tes progrès restent enregistrés ; il faudra un nouveau lien de ton parent pour revenir.', ok: 'Retirer', danger: true })) return; logout(); };
 }
 const activeCards = () => S.cards.filter((k) => skillActive(k)).length;
 function screenHome() {
@@ -742,7 +743,7 @@ function screenCours() {
   render(`
     <button class="link" id="back">← Retour</button>
     <h1>Mes cours</h1>
-    <p class="muted small">Dans l’ordre de ton cahier, puis deux leçons d’avance pour être prête quand le prof les commencera.</p>
+    <p class="muted small">Dans l’ordre de ton cahier, puis deux leçons d’avance pour être ${gw(GEN(), 'prête', 'prêt', 'prêt(e)')} quand le prof les commencera.</p>
     ${COURS.map((c) => {
       const p = coursProg(c.id), n = c.sections.length, seen = p.seen.length;
       const head = c.chap !== lastChap ? `<h3 style="margin:16px 4px 8px">${c.chap}</h3>` : ''; lastChap = c.chap;
@@ -1033,7 +1034,7 @@ function askConf(cb) {
   if (document.activeElement) document.activeElement.blur();
   document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="csheet" role="dialog" aria-modal="true"><div class="card sheet stack pop">
     <b>Tu réponds en étant…</b>
-    <div class="conf"><button class="btn ghost" data-c="sure">✅<br>sûre</button><button class="btn ghost" data-c="hesite">🤔<br>j’hésite</button><button class="btn ghost" data-c="hasard">🎲<br>au hasard</button></div>
+    <div class="conf"><button class="btn ghost" data-c="sure">✅<br>${gw(GEN(), 'sûre', 'sûr', 'sûr(e)')}</button><button class="btn ghost" data-c="hesite">🤔<br>j’hésite</button><button class="btn ghost" data-c="hasard">🎲<br>au hasard</button></div>
     <button class="link" id="cback">Changer ma réponse</button></div></div>`);
   const close = () => { const m = document.getElementById('csheet'); if (m) m.remove(); };
   document.getElementById('cback').onclick = close;
@@ -1158,7 +1159,7 @@ function wrongAttempt(err, raw, isQcm) {
   const maxTries = isQcm ? Math.min(2, it.choices.length - 1) : 3;
   if (c.tries >= maxTries) return finishItem(false, c.firstErr, raw, err.msg);
   let html = `<b>Pas encore.</b> ${err.msg}`;
-  if (c.tries === 1 && c.conf === 'sure') html += '<br><span class="small">Tu étais sûre de toi : c’est justement l’erreur à bien comprendre.</span>';
+  if (c.tries === 1 && c.conf === 'sure') html += `<br><span class="small">Tu étais ${gw(GEN(), 'sûre', 'sûr', 'sûr(e)')} de toi : c’est justement l’erreur à bien comprendre.</span>`;
   fb('bad', html);
   if (c.hints < it.hints.length) { fb('hint', '💡 ' + it.hints[c.hints], true); c.hints++; }
   if (!isQcm) { const inp = document.getElementById('ans'); inp.select(); }
@@ -1492,7 +1493,7 @@ const ERR_ADVICE = {
   tr_faux: 'relire l’énoncé et souligner les données avant de calculer.',
   pct_total: 'une augmentation en %, c’est (nouveau − ancien) ÷ ancien × 100.',
   question: 'à la fin, lui faire relire la question : « ai-je répondu à ce qui est demandé ? »',
-  notion: 'relire avec elle la leçon correspondante dans « Mes cours ».',
+  notion: 'relisez ensemble la leçon correspondante dans « Mes cours ».',
   p10: 'un écart de 10, 100 ou 1 000 vient presque toujours d’une conversion d’unités.',
   conv60: 'heures → minutes : × 60 ; minutes → heures : ÷ 60.',
   arrondi: 'garder tous les chiffres jusqu’au bout, arrondir seulement le résultat final.',
@@ -1515,18 +1516,21 @@ const KPI_HELP = [
   ['Temps total', (s, t) => `${Math.round((t.ms || 0) / 60000)} min en ${s.sessions} séance${s.sessions > 1 ? 's' : ''}`, 'Temps passé sur les exercices, depuis le début.'],
   ['Niveau et XP', (s) => `niveau ${levelInfo(s.xp).lvl} • ${s.xp} XP • série 🔥 ${s.streak.count}`, 'Points gagnés en s’entraînant ; la série compte les jours d’affilée.'],
   ['Rédaction (7 j)', (s, t) => t.redac7 ? `${Math.round(t.redacok7 / t.redac7 * 100)} % sur ${t.redac7} problème(s)` : 'pas encore', 'Problèmes rédigés en entier (formule, conversion, calcul, phrase) sans aide.'],
-  ['Justes « au hasard » (7 j)', (s, t) => `${t.lucky7 || 0}`, 'Bonnes réponses qu’elle a déclarées au hasard : elles reviennent le lendemain pour vérifier.'],
-  ['Faux alors que « sûre » (7 j)', (s, t) => `${t.surewrong7 || 0}`, 'Erreurs faites en se croyant sûre : ce sont les idées fausses à corriger en priorité.'],
+  ['Justes « au hasard » (7 j)', (s, t) => `${t.lucky7 || 0}`, 'Bonnes réponses données « au hasard » : elles reviennent le lendemain pour vérifier.'],
+  [(g) => `Faux alors que « ${gw(g, 'sûre', 'sûr', 'sûr(e)')} » (7 j)`, (s, t) => `${t.surewrong7 || 0}`, 'Erreurs faites avec une certitude : ce sont les idées fausses à corriger en priorité.'],
   ['File « À revoir »', (s) => `${(s.review || []).length} exercice(s)`, 'Chaque erreur revient à J+1, J+3, J+7 puis J+21 jusqu’à être réussie.'],
   ['Démarrage', (s) => s.diagDone ? `bilan terminé le ${s.diag.date.split('-').reverse().join('/')} (${s.diag.score}/${s.diag.total})` : `${(s.diagParts || []).filter(Boolean).length}/3 blocs du bilan`, 'Bilan de départ en 3 blocs de 5 questions, un par jour.'],
 ];
+/* Accords : 'f', 'm' ou rien (tournure neutre) */
+const gw = (g, f, m, n) => g === 'f' ? f : g === 'm' ? m : n;
 const isOpen = (s, k) => !k.lesson || !!((s.cours || {})[k.lesson] || {}).done;
+const lastDays = (n) => { const t = todayStr(), out = []; for (let i = n - 1; i >= 0; i--) out.push(addDays(t, -i)); return out; };
 function weekCard(s, st) {
-  const t = st.totals || {}, days = st.days || [];
-  const d7 = []; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() - i); d7.push(d.toISOString().slice(0, 10)); }
+  const t = st.totals || {}, days = st.days || [], g = st.gender;
+  const d7 = lastDays(7);
   const active = days.filter((d) => d7.includes(d.day) && d.n > 0).length;
   const feu = active >= 4 ? 'g' : active >= 2 ? 'o' : 'r';
-  const reg = `<span class="feu ${feu}"></span><b>Régularité :</b> ${active} jour${active > 1 ? 's' : ''} sur 7, ${t.n7 || 0} exercices${t.n7 ? ` (${Math.round(t.ok7 / t.n7 * 100)} % de réussite)` : ''}. ${feu === 'g' ? 'Très bien, c’est le bon rythme.' : feu === 'o' ? 'Objectif : 4 jours par semaine, même 10 minutes.' : 'Elle a peu pratiqué : un petit mot pour l’encourager à faire sa mission du jour.'}`;
+  const reg = `<span class="feu ${feu}"></span><b>Régularité :</b> ${active} jour${active > 1 ? 's' : ''} sur 7, ${t.n7 || 0} exercices${t.n7 ? ` (${Math.round(t.ok7 / t.n7 * 100)} % de réussite)` : ''}. ${feu === 'g' ? 'Très bien, c’est le bon rythme.' : feu === 'o' ? 'Objectif : 4 jours par semaine, même 10 minutes.' : `Peu de pratique cette semaine : un petit mot pour ${gw(g, 'l’encourager', 'l’encourager', 'encourager')} à faire la mission du jour.`}`;
   const gains = SKILLS.filter((k) => isOpen(s, k)).map((k) => ({ k, g: s.mastery[k.id] - ((s.diag && s.diag.skills && s.diag.skills[k.id]) ?? 0) })).sort((a, b) => b.g - a.g);
   const best = gains[0];
   const prog = best && best.g > 0 ? `<b>Progrès :</b> ${best.k.icon} ${best.k.name}, ${medalOf(s.mastery[best.k.id]) !== 'none' ? `médaille ${MEDAL_TXT[medalOf(s.mastery[best.k.id])].toLowerCase()}, ` : ''}+${best.g} points depuis ${s.diag ? 'le bilan de départ' : 'le début'}.`
@@ -1534,11 +1538,11 @@ function weekCard(s, st) {
   const err = (st.errors || []).find((e) => !['nsp', 'hasard'].includes(e.code));
   const att = err ? `<b>À travailler :</b> ${esc(ERR_LABELS[err.code] || err.code)} (${err.n} fois en 30 jours). Ce que tu peux lui dire : ${ERR_ADVICE[err.code] || ERR_ADVICE.autre}`
     : '<b>À travailler :</b> pas d’erreur qui se répète pour l’instant.';
-  const e = nextExam();
+  const e = childExams(st)[0];
   let ex = '';
   if (e && e.days <= 7) {
     const from = addDays(e.day, -7), done = (s.boss.history || []).filter((h) => h.date >= from);
-    ex = `<li>📅 <b>Contrôle ${examWhen(e)}</b> (${esc(e.label || 'physique')}) : ${done.length ? `contrôle blanc fait, ${fr(done[done.length - 1].note, 1)}/20.` : e.days <= 2 ? '<b>contrôle blanc pas encore fait</b>, c’est le moment.' : 'l’appli lui propose chaque jour un programme spécial.'}</li>`;
+    ex = `<li>📅 <b>Contrôle ${examWhen(e)}</b> (${esc(e.label || 'physique')}) : ${done.length ? `contrôle blanc fait, ${fr(done[done.length - 1].note, 1)}/20.` : e.days <= 2 ? '<b>contrôle blanc pas encore fait</b>, c’est le moment.' : 'l’appli propose chaque jour un programme spécial.'}</li>`;
   }
   return `<div class="card week ${feu} stack"><h2>Cette semaine</h2><ul><li>${reg}</li><li>📈 ${prog}</li><li>🎯 ${att}</li>${ex}</ul></div>`;
 }
@@ -1549,102 +1553,212 @@ function trend(s, k) {
   const d = s.mastery[k] - h[old][k];
   return d > 0 ? `<span class="up" title="+${d} en 7 jours">▲</span>` : d < 0 ? `<span class="down" title="${d} en 7 jours">▼</span>` : '<span class="eq">=</span>';
 }
-async function screenParent() {
-  render('<p class="center muted" style="margin-top:40px">Chargement…</p>');
-  let data;
-  try { data = await rpc('rv_dashboard', { p_token: token }); } catch (e) { render('<p class="center">Pas de connexion.</p><button class="btn" onclick="screenParent()">Réessayer</button>'); return; }
-  if (data.error) return logout(true);
-  const fmtDate = (d) => d ? new Date(d).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais';
-  const studs = data.students || [];
-  FAM = data.family || {}; INVITES = data.invites || [];
-  PLAN = data.plan || [];
-  const planOk = Array.isArray(data.plan);
-  render(`
-    <div class="row between" style="margin-bottom:12px"><h1>Tableau de bord</h1><button class="btn small ghost" id="ref">Actualiser</button></div>
-    ${studs.length ? '' : welcomeCard()}
-    ${studs.map((st, si) => {
-      const s = Object.assign(defaultState(), st.state || {});
-      s.mastery = Object.assign(defaultState().mastery, s.mastery);
-      const t = st.totals || {};
-      const name = s.pseudo || st.label;
-      const days = st.days || [];
-      const maxN = Math.max(1, ...days.map((d) => d.n));
-      const last14 = []; for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const k = d.toISOString().slice(0, 10); const f = days.find((x) => x.day === k); last14.push(f ? f.n : 0); }
-      const d7 = days.filter((d) => dayDiff(d.day, todayStr()) < 7 && d.n > 0).length;
-      const open = SKILLS.filter((k) => isOpen(s, k)), closed = SKILLS.length - open.length;
-      return `
-      <div class="row between" style="margin:6px 4px 10px"><h2>${esc(name)}</h2><span class="small muted">Dernière activité : ${fmtDate(t.last)}</span></div>
-      ${(st.devices || []).length ? weekCard(s, st) : ''}
-      ${accessCard(st, s)}
-      ${si === 0 ? planCard(planOk) : ''}
-      <div class="card stack">
-        <div class="kpis">
-          <div class="kpi"><span class="small muted">Jours actifs (7 j)</span><b>${d7}/7</b><span class="small muted">${t.n7 || 0} exercices</span></div>
-          <div class="kpi"><span class="small muted">Réussite (7 j)</span><b>${t.n7 ? Math.round(t.ok7 / t.n7 * 100) + ' %' : '—'}</b><span class="small muted">depuis le début : ${t.n ? Math.round(t.ok / t.n * 100) : 0} %</span></div>
-          <div class="kpi"><span class="small muted">À revoir aujourd’hui</span><b>${(s.review || []).filter((r) => r.due <= todayStr()).length}</b><span class="small muted">exercices ratés qui reviennent</span></div>
-          <div class="kpi"><span class="small muted">Contrôle blanc</span><b>${s.boss.best != null ? fr(s.boss.best, 1) + '/20' : '—'}</b><span class="small muted">${s.boss.history.length ? `${s.boss.history.length} essai(s)` : 'pas encore tenté'}</span></div>
-        </div>
-        <div><b class="small">Activité sur 14 jours</b><div class="days" style="margin-top:6px">${last14.map((n) => `<i style="height:${Math.round(n / maxN * 100)}%" title="${n}"></i>`).join('')}</div></div>
-        <details><summary><b>Détails</b> <span class="small muted">(autres indicateurs expliqués)</span></summary>
-          <table style="margin-top:6px">${KPI_HELP.map(([l, f, h]) => `<tr><td><b>${l}</b> : ${f(s, t)}<br><span class="small muted">${h}</span></td></tr>`).join('')}</table></details>
-        <button class="btn ghost" data-pv="${si}">👀 Voir l’appli comme ${esc(name)}</button>
-      </div>
-      <div class="card stack">
-        <h3>Maîtrise par compétence</h3>
-        <table class="mt">${open.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>
-        <p class="small muted" style="margin:0">▲ ▼ = évolution sur 7 jours. Une petite baisse après plusieurs jours sans pratique est normale : c’est l’oubli, qui se rattrape en quelques exercices.${closed ? ` ${closed} compétence${closed > 1 ? 's' : ''} pas encore ouverte${closed > 1 ? 's' : ''} (leçons d’avance).` : ''}</p>
-      </div>
-      <div class="card stack">
-        <h3>Cours lus</h3>
-        <table>${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title}${c.ahead ? ' <span class="small muted">(en avance)</span>' : ''}</td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
-        <h3 style="margin-top:6px">Erreurs les plus fréquentes (30 j)</h3>
-        ${(st.errors || []).filter((e) => e.code !== 'nsp').length ? `<table>${(st.errors || []).filter((e) => e.code !== 'nsp').slice(0, 5).map((e) => `<tr><td>${esc(ERR_LABELS[e.code] || e.code)}</td><td style="text-align:right"><b>${e.n}</b></td></tr>`).join('')}</table>` : '<p class="small muted">Rien à signaler pour l’instant.</p>'}
-        <details><summary><b>Derniers exercices</b></summary>
-          <table style="margin-top:6px">${(st.recent || []).map((r) => `<tr><td>${r.correct ? '✅' : '❌'}</td><td><span class="small muted">${fmtDate(r.ts)} • ${esc(RUN_LABEL[r.mode] || r.mode)}</span><br>${esc((r.question || '').slice(0, 140))}<br><span class="small">Réponse : <b>${esc(r.answer)}</b>${r.conf ? ` • ${esc({ sure: 'sûre', hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne sait pas' }[r.conf] || r.conf)}` : ''}${r.error_code ? ` • ${esc(ERR_LABELS[r.error_code] || r.error_code)}` : ''}${r.hints ? ` • ${r.hints} indice(s)` : ''}</span></td></tr>`).join('')}</table>
-        </details>
-      </div>`; }).join('')}
-    ${familyCard(studs)}
-    ${helpCard()}
-    <div class="center stack" style="gap:6px">
-      ${ACCTS.length > 1 ? '<button class="link" id="psw">👥 Changer de profil</button>' : ''}
-      <button class="link" id="out">Me déconnecter de cet appareil</button>
-    </div>
-    ${legal()}`);
-  document.getElementById('ref').onclick = screenParent;
-  document.getElementById('out').onclick = () => { if (confirm('Te déconnecter de cet appareil ? Tu pourras revenir avec un nouveau lien reçu par e-mail.')) logout(); };
-  const psw = document.getElementById('psw'); if (psw) psw.onclick = switchProfile;
-  bindParentExtras(studs);
-  $app.querySelectorAll('[data-pv]').forEach((b) => b.onclick = () => {
-    const st = studs[+b.dataset.pv];
-    S = Object.assign(defaultState(), JSON.parse(JSON.stringify(st.state || {})));
-    S.mastery = Object.assign(defaultState().mastery, S.mastery);
-    if (!S.pseudo) S.pseudo = st.label || 'Élève';
-    PREVIEW = true; document.body.classList.toggle('large', false);
-    route();
+
+/* ---------- Fenêtre de confirmation intégrée (remplace confirm / prompt / alert) ---------- */
+function ask(o) {
+  return new Promise((res) => {
+    const old = document.getElementById('ask'); if (old) old.remove();
+    if (document.activeElement) document.activeElement.blur();
+    const hasIn = o.input != null;
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="ask" role="dialog" aria-modal="true"><div class="card sheet stack pop">
+      <h3>${o.title}</h3>${o.text ? `<p class="small" style="margin:0">${o.text}</p>` : ''}
+      ${hasIn ? `<input class="field" id="askin" placeholder="${esc(o.input)}" autocomplete="off" ${o.type ? `type="${o.type}"` : ''}>` : ''}
+      ${o.copy ? `<textarea class="field" id="askcp" readonly rows="4">${esc(o.copy)}</textarea>` : ''}
+      <button class="btn ${o.danger ? 'bad' : ''}" id="askok">${o.ok || 'Confirmer'}</button>
+      ${o.cancel === false ? '' : `<button class="btn ghost" id="askno">${o.cancel || 'Annuler'}</button>`}</div></div>`);
+    const m = document.getElementById('ask');
+    const done = (v) => { m.remove(); res(v); };
+    document.getElementById('askok').onclick = async () => {
+      if (o.copy) {
+        const ta = document.getElementById('askcp'); ta.select();
+        try { await navigator.clipboard.writeText(o.copy); } catch (e) { try { document.execCommand('copy'); } catch (e2) {} }
+        toast('Copié ✓'); return done(true);
+      }
+      done(hasIn ? document.getElementById('askin').value.trim() : true);
+    };
+    const no = document.getElementById('askno'); if (no) no.onclick = () => done(hasIn ? null : false);
+    m.onclick = (e) => { if (e.target.id === 'ask') done(hasIn ? null : false); };
+    if (hasIn) setTimeout(() => document.getElementById('askin').focus(), 60);
   });
-  bindPlanCard();
 }
-/* ---------- Espace parent : enfants, appareils, e-mails, invitations ---------- */
-let FAM = {}, INVITES = [];
-const childUrl = (sec) => `${location.origin}${location.pathname}#j=${sec}`;
-const fmtDay = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/* ---------- Espace parent : 3 onglets (Suivi, Contrôles, Réglages) et choix de l'enfant ---------- */
+let FAM = {}, INVITES = [], DASH = null, DASH_AT = 0, PREVIEW_G = null;
+const PV = Object.assign({ tab: 'suivi', child: null }, LS.get('rv_pv', {}));
+const savePV = () => LS.set('rv_pv', PV);
+const childName = (st) => (st.state && st.state.pseudo) || st.label;
+const childPlan = (st) => (DASH.plan || []).filter((p) => !p.student || p.student === st.id);
+function childExams(st) {
+  const t = todayStr();
+  return childPlan(st).filter((p) => p.kind === 'exam' && p.day && p.day >= t).sort((a, b) => a.day < b.day ? -1 : 1)
+    .map((e) => Object.assign({ days: dayDiff(t, e.day) }, e));
+}
+function childState(st) {
+  const s = Object.assign(defaultState(), st.state || {});
+  s.mastery = Object.assign(defaultState().mastery, s.mastery);
+  return s;
+}
+async function screenParent(useCache) {
+  if (!(useCache && DASH)) {
+    if (!DASH) render('<p class="center muted" style="margin-top:40px">Chargement…</p>');
+    let data;
+    try { data = await rpc('rv_dashboard', { p_token: token }); }
+    catch (e) { if (DASH) { toast('Pas de connexion internet.'); return drawParent(); } render('<p class="center" style="margin-top:40px">Pas de connexion internet.</p><button class="btn" id="rt">Réessayer</button>'); document.getElementById('rt').onclick = () => screenParent(); return; }
+    if (data.error) return logout(true);
+    DASH = data; DASH_AT = Date.now();
+  }
+  FAM = DASH.family || {}; INVITES = DASH.invites || [];
+  drawParent();
+}
+function curChild() {
+  const studs = DASH.students || [];
+  return studs.find((s) => s.id === PV.child) || studs[0] || null;
+}
+function drawParent() {
+  const studs = DASH.students || [], st = curChild();
+  if (st) PV.child = st.id;
+  const tab = PV.tab;
+  let body;
+  if (!st) body = tab === 'reglages' ? tabReglages(null) : tab === 'controles' ? '<div class="card"><p style="margin:0">Ajoute d’abord ton enfant dans l’onglet <b>Suivi</b>.</p></div>' : welcomeCard();
+  else body = tab === 'controles' ? tabControles(st) : tab === 'reglages' ? tabReglages(st) : tabSuivi(st);
+  const y = window.scrollY;
+  render(`<div class="pz">
+    <div class="phead row between"><div class="row" style="gap:8px"><span class="logo-s">⚡</span><b>${APP_NAME}</b></div><span class="small muted">Espace parent</span></div>
+    ${studs.length > 1 ? `<div class="kids" role="tablist">${studs.map((s) => `<button role="tab" class="kid ${s === st ? 'on' : ''}" data-kid="${s.id}">${esc(childName(s))}</button>`).join('')}</div>` : ''}
+    ${body}
+  </div>
+  <nav class="tabbar">${[['suivi', '📊', 'Suivi'], ['controles', '📅', 'Contrôles'], ['reglages', '⚙️', 'Réglages']].map(([k, i, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}</button>`).join('')}</nav>`);
+  window.scrollTo(0, PV.keepY ? y : 0); PV.keepY = false;
+  $app.querySelectorAll('[data-kid]').forEach((b) => b.onclick = () => { PV.child = b.dataset.kid; savePV(); drawParent(); });
+  $app.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { PV.tab = b.dataset.tab; savePV(); drawParent(); });
+  bindParent(st);
+}
+/* Rechargement automatique au retour sur l'appli (remplace « Actualiser ») */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || role !== 'parent' || PREVIEW || !DASH || Date.now() - DASH_AT < 60000) return;
+  if (document.getElementById('ask') || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return;
+  PV.keepY = true; screenParent();
+});
+
+/* ----- Onglet Suivi ----- */
+function pendingCard(st) {
+  const name = childName(st);
+  return `<div class="card stack pending">
+    <h2>⏳ En attente de la première connexion</h2>
+    <p style="margin:0">${esc(name)} n’a encore ouvert l’appli sur aucun appareil. Envoie-lui son lien : il suffit de l’ouvrir <b>une fois</b> sur son téléphone, sa tablette ou son ordinateur.</p>
+    ${accessButtons(st)}
+    <p class="small muted" style="margin:0">Le suivi s’affichera ici dès sa première séance.</p>
+  </div>`;
+}
+function accessButtons(st) {
+  const name = childName(st);
+  return `<button class="btn" data-share="${st.id}" data-name="${esc(name)}">📲 Envoyer le lien à ${esc(name)}</button>
+    <button class="btn ghost" data-code="${st.id}">🔢 Afficher un code (appli installée ou ordinateur)</button>
+    <div class="codebox" id="code-${st.id}" hidden></div>`;
+}
+function activityChart(st) {
+  const days = st.days || [], list = lastDays(14);
+  const vals = list.map((d) => { const f = days.find((x) => x.day === d); return f ? f.n : 0; });
+  const max = Math.max(1, ...vals), L = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+  return `<div class="days2">${list.map((d, i) => { const n = vals[i], last = i === list.length - 1;
+    return `<div class="${last ? 'today' : ''}" title="${d.split('-').reverse().join('/')} : ${n} exercice${n > 1 ? 's' : ''}"><i class="${n ? '' : 'zero'}" style="height:${n ? Math.max(8, Math.round(n / max * 100)) : 4}%"></i><span>${last ? 'auj.' : L[new Date(d + 'T12:00').getDay()]}</span></div>`; }).join('')}</div>`;
+}
+function tabSuivi(st) {
+  const s = childState(st), t = st.totals || {}, name = childName(st), g = st.gender;
+  const fmtDate = (d) => d ? new Date(d).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais';
+  const headTitle = `<div class="ptitle"><h1>${esc(name)}</h1><span class="small muted">Dernière activité : ${fmtDate(t.last)}</span></div>`;
+  if (!(st.devices || []).length && !t.n) return headTitle + pendingCard(st);
+  const open = SKILLS.filter((k) => isOpen(s, k)), closed = SKILLS.length - open.length;
+  const started = open.filter((k) => s.mastery[k.id] > 0 || ((s.lastPrac || {})[k.id])), notYet = open.filter((k) => !started.includes(k));
+  const due = (s.review || []).filter((r) => r.due <= todayStr()).length;
+  const errs = (st.errors || []).filter((e) => e.code !== 'nsp');
+  return `${headTitle}
+    ${weekCard(s, st)}
+    <div class="card stack">
+      <div class="kpis two">
+        <div class="kpi"><span class="small muted">À revoir aujourd’hui</span><b>${due}</b><span class="small muted">exercice${due > 1 ? 's' : ''} raté${due > 1 ? 's' : ''} qui ${due > 1 ? 'reviennent' : 'revient'}</span></div>
+        <div class="kpi"><span class="small muted">Contrôle blanc</span><b>${s.boss.best != null ? fr(s.boss.best, 1) + '/20' : '—'}</b><span class="small muted">${s.boss.history.length ? `meilleure note, ${s.boss.history.length} essai${s.boss.history.length > 1 ? 's' : ''}` : 'pas encore tenté'}</span></div>
+      </div>
+      <div><b class="small">Exercices par jour, 14 derniers jours</b>${activityChart(st)}</div>
+      <button class="btn ghost" data-pv="${st.id}">👀 Voir son appli, comme ${esc(name)} la voit</button>
+    </div>
+    <div class="card stack">
+      <h3>Maîtrise par compétence</h3>
+      ${started.length ? `<table class="mt">${started.map((k) => `<tr><td>${k.icon} ${k.name}</td><td style="text-align:right;white-space:nowrap">${medalOf(s.mastery[k.id]) === 'none' ? '<span class="medal m-none">en cours</span>' : medalHtml(s.mastery[k.id])} ${trend(s, k.id)}</td></tr>`).join('')}</table>` : '<p class="small muted" style="margin:0">Aucune compétence travaillée pour l’instant.</p>'}
+      ${notYet.length ? `<details><summary class="small"><b>Pas encore commencées (${notYet.length})</b></summary><p class="small muted" style="margin:6px 0 0">${notYet.map((k) => `${k.icon} ${k.name}`).join(' • ')}</p></details>` : ''}
+      <p class="small muted" style="margin:0">▲ ▼ : évolution sur 7 jours. Une petite baisse après quelques jours sans pratique est normale.${closed ? ` ${closed} compétence${closed > 1 ? 's' : ''} s’ouvri${closed > 1 ? 'ront' : 'ra'} avec les leçons d’avance.` : ''}</p>
+    </div>
+    <div class="card stack">
+      <h3>Cours lus</h3>
+      <table>${COURS.map((c) => { const p = (s.cours || {})[c.id] || {}; return `<tr><td>${c.icon} ${c.title}${c.ahead ? ' <span class="small muted">(en avance)</span>' : ''}</td><td style="text-align:right">${p.done ? '✅' : (p.seen || []).length ? `${(p.seen || []).length}/${c.sections.length}` : '—'}</td></tr>`; }).join('')}</table>
+    </div>
+    <details class="card stack"><summary><b>Plus de détails</b> <span class="small muted">erreurs, derniers exercices, indicateurs</span></summary>
+      <h3 style="margin-top:10px">Erreurs les plus fréquentes (30 j)</h3>
+      ${errs.length ? `<table>${errs.slice(0, 5).map((e) => `<tr><td>${esc(ERR_LABELS[e.code] || e.code)}</td><td style="text-align:right"><b>${e.n}</b></td></tr>`).join('')}</table>` : '<p class="small muted">Rien à signaler pour l’instant.</p>'}
+      <h3>Indicateurs</h3>
+      <table>${KPI_HELP.map(([l, f, h]) => `<tr><td><b>${typeof l === 'function' ? l(g) : l}</b> : ${f(s, t)}<br><span class="small muted">${h}</span></td></tr>`).join('')}</table>
+      <h3>Derniers exercices</h3>
+      <table>${(st.recent || []).map((r) => `<tr><td>${r.correct ? '✅' : '❌'}</td><td><span class="small muted">${fmtDate(r.ts)} • ${esc(RUN_LABEL[r.mode] || r.mode)}</span><br>${esc((r.question || '').slice(0, 140))}<br><span class="small">Réponse : <b>${esc(r.answer)}</b>${r.conf ? ` • ${esc({ sure: gw(g, 'sûre', 'sûr', 'sûr(e)'), hesite: 'hésitait', hasard: 'au hasard', nsp: 'ne sait pas' }[r.conf] || r.conf)}` : ''}${r.error_code ? ` • ${esc(ERR_LABELS[r.error_code] || r.error_code)}` : ''}${r.hints ? ` • ${r.hints} indice(s)` : ''}</span></td></tr>`).join('') || '<tr><td class="small muted">Aucun exercice pour l’instant.</td></tr>'}</table>
+    </details>`;
+}
+
+/* ----- Onglet Contrôles et copies ----- */
+const fmtD = (d) => d ? d.split('-').reverse().join('/') : '';
+function tabControles(st) {
+  const s = childState(st), name = childName(st);
+  const ex = childExams(st), cp = childPlan(st).filter((p) => p.kind === 'copie');
+  const fam = (p) => p.student ? '' : ' <span class="small muted">(toute la famille)</span>';
+  const skillOpts = SKILLS.filter((k) => isOpen(s, k)).map((k) => `<label class="ck line"><input type="checkbox" value="${k.id}"> ${k.icon} ${k.name}</label>`).join('');
+  return `<div class="ptitle"><h1>Contrôles de ${esc(name)}</h1></div>
+  <div class="card stack">
+    <h2>📅 Prochains contrôles</h2>
+    ${ex.length ? `<table>${ex.map((e) => `<tr><td><b>${fmtD(e.day)}</b> • ${esc(e.label || 'Contrôle')}${fam(e)}<br><span class="small muted">${examWhen(e)} • ${(e.skills || []).map((k) => (SKILLS.find((x) => x.id === k) || {}).name).filter(Boolean).join(', ') || 'toutes les compétences'}</span></td><td class="tact"><button class="more" data-del="${e.id}" data-what="le contrôle du ${fmtD(e.day)}" aria-label="Options">⋯</button></td></tr>`).join('')}</table>`
+      : `<p class="small muted" style="margin:0">Aucun contrôle saisi. Dès qu’une date est connue, l’appli prépare ${esc(name)} : programme ciblé 7 jours avant, contrôle blanc à J-2.</p>`}
+    <details><summary><b>+ Ajouter un contrôle</b></summary>
+      <div class="stack" style="margin-top:10px">
+        <label class="small" for="exday"><b>Date du contrôle</b></label><input class="field" type="date" id="exday" min="${todayStr()}">
+        <label class="small" for="exlabel"><b>Titre</b> <span class="muted">(facultatif)</span></label><input class="field" id="exlabel" maxlength="120" placeholder="Ex. : vitesse et distance d’arrêt">
+        <details><summary class="small"><b>Préciser les compétences</b> <span class="muted">(facultatif, sinon toutes)</span></summary><div class="cks col" id="exsk" style="margin-top:8px">${skillOpts}</div></details>
+        <button class="btn" id="exadd">Enregistrer le contrôle</button></div>
+    </details>
+  </div>
+  <div class="card stack">
+    <h2>📝 Erreurs relevées sur les copies</h2>
+    ${FAM.admin ? '<div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée à Claude, qui relève les erreurs pour toi.</div>' : ''}
+    <p class="small muted" style="margin:0">Chaque erreur saisie revient dans « À revoir » dès la prochaine connexion, puis à J+1, J+3, J+7 et J+21.</p>
+    ${cp.length ? `<table>${cp.slice(-8).reverse().map((e) => `<tr><td>${esc(e.label || '')}${fam(e)}<br><span class="small muted">${esc(ERR_LABELS[e.error_code] || e.error_code || '')}</span></td><td class="tact"><button class="more" data-del="${e.id}" data-what="l’erreur « ${esc(e.label || '')} »" aria-label="Options">⋯</button></td></tr>`).join('')}</table>` : ''}
+    <details><summary><b>+ Ajouter une erreur à la main</b></summary>
+      <div class="stack" style="margin-top:10px">
+        <label class="small" for="cplabel"><b>Exercice</b> <span class="muted">(facultatif)</span></label><input class="field" id="cplabel" maxlength="120" placeholder="Ex. : contrôle du 12/11, exercice 3">
+        <label class="small" for="cptype"><b>Ce qui n’allait pas</b></label>
+        <select class="field" id="cptype">${COPY_TYPES.map(([t], i) => `<option value="${i}">${esc(t)}</option>`).join('')}</select>
+        <button class="btn" id="cpadd">Enregistrer l’erreur</button></div>
+    </details>
+  </div>`;
+}
+
+/* ----- Onglet Réglages ----- */
+const genderField = (name, val) => `<div class="seg">${[['f', 'Fille'], ['m', 'Garçon'], ['', 'Ne pas préciser']].map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${(val || '') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
 function addChildForm(first) {
   return `<div class="stack" style="margin-top:8px">
     <label class="small" for="cname"><b>Prénom de ${first ? 'ton enfant' : 'l’enfant'}</b></label>
-    <div class="answer"><input id="cname" maxlength="30" placeholder="Prénom ou surnom" autocomplete="off"></div>
+    <input class="field" id="cname" maxlength="30" placeholder="Prénom ou surnom" autocomplete="off">
+    <span class="small"><b>C’est…</b> <span class="muted">(pour accorder les textes de l’appli)</span></span>
+    ${genderField('cgender', '')}
     <label class="small" for="cpin"><b>Code à 4 chiffres</b> <span class="muted">(facultatif)</span></label>
-    <div class="answer"><input id="cpin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Ex. : 2580" autocomplete="off"></div>
-    <p class="small muted" style="margin:0">Sur son propre téléphone, ton enfant ouvre l’appli sans rien taper. Ce code ne sert que si plusieurs profils sont enregistrés sur le même appareil (tablette familiale…). Détails dans « ❓ Comment ça marche ».</p>
+    <input class="field" id="cpin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Ex. : 2580" autocomplete="off">
+    <p class="small muted" style="margin:0">Sur son propre téléphone, ton enfant ouvre l’appli sans rien taper. Ce code ne sert que si plusieurs profils sont enregistrés sur le même appareil (tablette familiale…).</p>
     <button class="btn" id="cadd">Ajouter</button></div>`;
 }
 const HELP_QA = [
-  ['Comment mon enfant se connecte-t-il ?', 'Tu lui envoies son lien personnel (bouton « 📲 Envoyer le lien », dans « Accès de… »). Il l’ouvre <b>une seule fois</b> sur son téléphone, sa tablette ou son ordinateur. Cet appareil est alors reconnu : la fois suivante, l’appli s’ouvre directement sur son espace, sans mot de passe à retenir.'],
-  ['À quoi sert le code à 4 chiffres ?', 'Il ne sert que lorsque <b>plusieurs profils sont enregistrés sur le même appareil</b> : une tablette familiale, un ordinateur partagé, ou ton propre téléphone sur lequel tu as aussi ton espace parent. L’appli demande alors « Qui se connecte ? » et le profil protégé (🔒) n’ouvre qu’avec son code. Cela évite qu’un frère, une sœur ou un parent réponde à sa place et fausse sa progression.'],
-  ['Faut-il mettre un code ?', 'Non, c’est facultatif. Si ton enfant révise uniquement sur son propre téléphone, laisse le champ vide : il n’aura jamais rien à taper. Tu peux ajouter ou changer le code plus tard dans « Accès de… » › « Autres réglages ».'],
-  ['L’appli est installée sur l’écran d’accueil : pourquoi le lien ne suffit pas ?', 'Sur un téléphone, l’appli installée garde sa propre mémoire, séparée du navigateur. Un lien touché dans un e-mail ou WhatsApp s’ouvre dans le navigateur, pas dans l’appli. Dans l’appli installée, on se connecte donc avec un <b>code</b> : pour toi, le code à 6 chiffres de l’e-mail de connexion ; pour ton enfant, le bouton « 🔢 Afficher un code » de « Accès de… ». Ensuite, l’appli s’ouvre directement.'],
+  ['Comment mon enfant se connecte-t-il ?', 'Tu lui envoies son lien personnel (Réglages › « 📲 Envoyer le lien »). Il l’ouvre <b>une seule fois</b> sur son téléphone, sa tablette ou son ordinateur. Cet appareil est alors reconnu : la fois suivante, l’appli s’ouvre directement sur son espace, sans mot de passe à retenir.'],
+  ['À quoi sert le code à 4 chiffres ?', 'Il ne sert que lorsque <b>plusieurs profils sont enregistrés sur le même appareil</b> : une tablette familiale, un ordinateur partagé, ou ton propre téléphone sur lequel tu as aussi ton espace parent. L’appli demande alors « Qui se connecte ? » et le profil protégé (🔒) n’ouvre qu’avec son code. Cela évite qu’un frère, une sœur ou un parent réponde à sa place.'],
+  ['Faut-il mettre un code ?', 'Non, c’est facultatif. Si ton enfant révise uniquement sur son propre téléphone, laisse le champ vide. Tu peux ajouter ou changer le code plus tard dans Réglages › « Autres réglages ».'],
+  ['L’appli est installée sur l’écran d’accueil : pourquoi le lien ne suffit pas ?', 'Sur un téléphone, l’appli installée garde sa propre mémoire, séparée du navigateur. Un lien touché dans un e-mail ou WhatsApp s’ouvre dans le navigateur, pas dans l’appli. Dans l’appli installée, on se connecte donc avec un <b>code</b> : pour toi, le code à 6 chiffres de l’e-mail de connexion ; pour ton enfant, le bouton « 🔢 Afficher un code ». Ensuite, l’appli s’ouvre directement.'],
   ['Et sur un ordinateur ?', 'Même principe : touche « 🔢 Afficher un code », puis ton enfant le tape une fois sur l’ordinateur, qui est ensuite reconnu.'],
-  ['Un appareil a été perdu ou prêté ?', 'Dans « Accès de… », touche « Retirer » à côté de l’appareil : il ne pourra plus ouvrir l’appli. En cas de doute, « Créer un nouveau lien » désactive l’ancien lien.'],
-  ['Puis-je voir ce que fait mon enfant ?', 'Oui : « 👀 Voir l’appli comme… » t’ouvre son appli telle qu’il la voit, sans rien enregistrer. Le tableau de bord résume sa semaine, et tu reçois les e-mails choisis dans la rubrique « ✉️ E-mails ».'],
+  ['Un appareil a été perdu ou prêté ?', 'Dans Réglages, touche « Retirer » à côté de l’appareil : il ne pourra plus ouvrir l’appli. En cas de doute, « Créer un nouveau lien » désactive l’ancien lien.'],
+  ['Puis-je voir ce que fait mon enfant ?', 'Oui : dans Suivi, « 👀 Voir son appli » t’ouvre son appli telle qu’il la voit, sans rien enregistrer. Tu reçois aussi les e-mails choisis dans Réglages › « ✉️ E-mails ».'],
+  ['Les contrôles valent-ils pour tous mes enfants ?', 'Non : chaque contrôle et chaque erreur de copie est rattaché à l’enfant choisi en haut de l’écran. Change d’enfant avant de saisir.'],
 ];
 function helpCard() {
   return `<details class="card stack help">
@@ -1658,31 +1772,33 @@ function welcomeCard() {
     <p>Première étape : ajoute ton enfant. Tu pourras ensuite lui envoyer son lien d’accès par message.</p>
     ${addChildForm(true)}</div>`;
 }
-function accessCard(st, s) {
-  const dev = st.devices || [], name = s.pseudo || st.label;
-  return `<details class="card stack access" ${dev.length ? '' : 'open'}>
-    <summary><b>📱 Accès de ${esc(name)}</b> <span class="small muted">${dev.length ? `${dev.length} appareil${dev.length > 1 ? 's' : ''}` : 'aucun appareil pour l’instant'}</span></summary>
-    ${dev.length ? '' : `<div class="tip">Envoie-lui son lien : il ou elle l’ouvre <b>une fois</b> sur son téléphone, sa tablette ou son ordinateur, et l’appli s’ouvrira ensuite directement.</div>`}
-    <button class="btn" data-share="${st.id}" data-name="${esc(name)}">📲 Envoyer le lien à ${esc(name)}</button>
-    <button class="btn ghost" data-code="${st.id}">🔢 Afficher un code (appli installée ou ordinateur)</button>
-    <div class="codebox" id="code-${st.id}" hidden></div>
-    ${dev.length ? `<table>${dev.map((d) => `<tr><td>${esc(d.label || 'Appareil')}<br><span class="small muted">Dernière utilisation : ${fmtDay(d.last)}</span></td><td style="text-align:right"><button class="link" data-dev="${d.id}" data-what="${esc(d.label || 'cet appareil')}">Retirer</button></td></tr>`).join('')}</table>` : ''}
-    <details><summary class="small"><b>Autres réglages</b></summary><div class="stack" style="margin-top:8px">
-      <p class="small muted" style="margin:0">Code à 4 chiffres : ${st.has_pin ? 'activé' : 'aucun'} (demandé seulement si plusieurs profils partagent un appareil).</p>
-      <div class="row"><div class="answer grow"><input data-pinin="${st.id}" maxlength="4" inputmode="numeric" placeholder="Nouveau code" autocomplete="off"></div><button class="btn small ghost" data-pinset="${st.id}">Enregistrer</button></div>
-      <button class="btn small ghost" data-renew="${st.id}" data-name="${esc(name)}">🔄 Créer un nouveau lien (l’ancien ne marchera plus)</button>
+function accessCard(st) {
+  const dev = st.devices || [], name = childName(st);
+  return `<div class="card stack access">
+    <h2>📱 Accès de ${esc(name)}</h2>
+    ${accessButtons(st)}
+    ${dev.length ? `<table>${dev.map((d) => `<tr><td>${esc(d.label || 'Appareil')}<br><span class="small muted">Dernière utilisation : ${fmtDay(d.last)}</span></td><td class="tact"><button class="link" data-dev="${d.id}" data-what="${esc(d.label || 'cet appareil')}">Retirer</button></td></tr>`).join('')}</table>` : '<p class="small muted" style="margin:0">Aucun appareil pour l’instant.</p>'}
+    <details><summary class="small"><b>Autres réglages de ${esc(name)}</b></summary><div class="stack" style="margin-top:10px">
+      <span class="small"><b>C’est…</b> <span class="muted">(accord des textes)</span></span>
+      ${genderField('g-' + st.id, st.gender)}
+      <span class="small"><b>Code à 4 chiffres</b> <span class="muted">: ${st.has_pin ? 'activé' : 'aucun'} (demandé seulement si plusieurs profils partagent un appareil)</span></span>
+      <input class="field" data-pinin="${st.id}" maxlength="4" inputmode="numeric" placeholder="Nouveau code" autocomplete="off">
+      <button class="btn ghost" data-pinset="${st.id}">Enregistrer le code</button>
+      <button class="btn ghost" data-renew="${st.id}" data-name="${esc(name)}">🔄 Créer un nouveau lien (l’ancien ne marchera plus)</button>
       <button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}">Supprimer le profil de ${esc(name)} et ses données</button>
     </div></details>
-  </details>`;
+  </div>`;
 }
-function familyCard(studs) {
-  const n = FAM.notify || 'each';
+function tabReglages(st) {
+  const studs = DASH.students || [], n = FAM.notify || 'each';
   const opt = (v, t, d) => `<label class="radio"><input type="radio" name="notify" value="${v}" ${n === v ? 'checked' : ''}><span><b>${t}</b><br><span class="small muted">${d}</span></span></label>`;
-  return `<div class="card stack">
+  return `<div class="ptitle"><h1>Réglages</h1></div>
+  ${st ? accessCard(st) : ''}
+  <div class="card stack">
     <h2>✉️ E-mails</h2>
     <p class="small muted" style="margin:0">Envoyés à ${esc(FAM.email || '')}</p>
     ${opt('each', 'À chaque séance', 'Un e-mail quand ton enfant commence à réviser (30 min d’écart au minimum).')}
-    ${opt('evening', 'Récap du soir', 'Un seul e-mail vers 21 h, seulement les jours où il a révisé.')}
+    ${opt('evening', 'Récap du soir', 'Un seul e-mail vers 21 h, seulement les jours de révision.')}
     ${opt('off', 'Aucun', 'Tu consultes le tableau de bord quand tu veux.')}
     <label class="ck"><input type="checkbox" id="fweek" ${FAM.weekly ? 'checked' : ''}> Bilan de la semaine le dimanche soir</label>
   </div>
@@ -1690,19 +1806,32 @@ function familyCard(studs) {
   ${FAM.admin ? `<div class="card stack">
     <h2>🎟️ Inviter un parent</h2>
     <p class="small muted" style="margin:0">Chaque code permet à une famille de créer son espace (valable 60 jours, une seule fois).</p>
-    <div class="row"><div class="answer grow"><input id="invnote" maxlength="60" placeholder="Pour qui ? (ex. : Sophie, maman de Léo)"></div><button class="btn small" id="invadd">Créer</button></div>
-    ${INVITES.length ? `<table>${INVITES.slice(0, 12).map((i) => `<tr><td><b class="mono">${esc(i.code)}</b>${i.note ? ` • ${esc(i.note)}` : ''}<br><span class="small muted">${i.used ? '✅ utilisé' : new Date(i.expires) < new Date() ? 'expiré' : 'en attente'}</span></td><td style="text-align:right">${i.used ? '' : `<button class="link" data-inv="${esc(i.code)}">Envoyer</button>`}</td></tr>`).join('')}</table>` : ''}
+    <input class="field" id="invnote" maxlength="60" placeholder="Pour qui ? (ex. : Sophie, maman de Léo)">
+    <button class="btn" id="invadd">Créer un code d’invitation</button>
+    ${INVITES.length ? `<table>${INVITES.slice(0, 12).map((i) => `<tr><td><b class="mono">${esc(i.code)}</b>${i.note ? ` • ${esc(i.note)}` : ''}<br><span class="small muted">${i.used ? '✅ utilisé' : new Date(i.expires) < new Date() ? 'expiré' : 'en attente'}</span></td><td class="tact">${i.used ? '' : `<button class="link" data-inv="${esc(i.code)}">Envoyer</button>`}</td></tr>`).join('')}</table>` : ''}
   </div>` : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
     <p class="small muted" style="margin:0">Supprimer ton compte efface définitivement ton espace, les profils de tes enfants et toutes leurs réponses.</p>
-    <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}`;
+    <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}
+  ${helpCard()}
+  <div class="center stack" style="gap:6px">
+    ${ACCTS.length > 1 ? '<button class="link" id="psw">👥 Changer de profil</button>' : ''}
+    <button class="link" id="out">Me déconnecter de cet appareil</button>
+  </div>
+  ${legal()}`;
 }
+const childUrl = (sec) => `${location.origin}${location.pathname}#j=${sec}`;
+const fmtDay = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 async function shareText(title, text, url) {
   if (navigator.share) { try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
   const full = `${text} ${url}`;
   try { await navigator.clipboard.writeText(full); toast('Message copié : colle-le dans WhatsApp ou un SMS.'); }
-  catch (e) { prompt('Copie ce message :', full); }
+  catch (e) { ask({ title: 'Copie ce message', text: 'Puis colle-le dans WhatsApp ou un SMS.', copy: full, ok: 'Copier', cancel: 'Fermer' }); }
 }
-function bindParentExtras(studs) {
+function inviteShare(code) {
+  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique de 3e. Crée ton espace parent (« Je suis parent ») avec ton adresse e-mail et ce code d’invitation : ${code}`, `${location.origin}${location.pathname}`);
+}
+function bindParent(st) {
+  const $ = (id) => document.getElementById(id);
   const call = async (fn, args, ok) => {
     try {
       const r = await rpc(fn, Object.assign({ p_token: token }, args));
@@ -1710,114 +1839,97 @@ function bindParentExtras(studs) {
       if (ok) toast(ok); return r;
     } catch (e) { toast('Pas de connexion internet.'); return null; }
   };
-  const ca = document.getElementById('cadd');
-  if (ca) ca.onclick = async () => {
-    const name = document.getElementById('cname').value.trim(), pin = document.getElementById('cpin').value.trim();
+  const reload = () => { PV.keepY = true; return screenParent(); };
+  // Ajout d'un enfant
+  if ($('cadd')) $('cadd').onclick = async () => {
+    const name = $('cname').value.trim(), pin = $('cpin').value.trim();
+    const g = (document.querySelector('input[name="cgender"]:checked') || {}).value || null;
     if (!name) return toast('Écris le prénom de ton enfant.');
     if (pin && !/^\d{4}$/.test(pin)) return toast('Le code doit faire 4 chiffres.');
-    if (await call('rv_child_add', { p_name: name, p_pin: pin || null }, `Profil de ${name} créé ✓`)) screenParent();
+    const r = await call('rv_child_add', { p_name: name, p_pin: pin || null, p_gender: g }, `Profil de ${name} créé ✓`);
+    if (r) { PV.child = r.id; PV.tab = 'suivi'; savePV(); screenParent(); }
   };
+  // Accès
   $app.querySelectorAll('[data-share]').forEach((b) => b.onclick = async () => {
     const r = await call('rv_child_link', { p_child: b.dataset.share, p_renew: false }); if (!r) return;
     shareText(APP_NAME, `${b.dataset.name}, voici ton lien pour réviser la physique. Ouvre-le une fois sur ton téléphone (ou ta tablette) : ensuite l’appli s’ouvrira directement.`, childUrl(r.secret));
   });
   $app.querySelectorAll('[data-code]').forEach((b) => b.onclick = async () => {
     const r = await call('rv_child_code', { p_child: b.dataset.code }); if (!r) return;
-    const box = document.getElementById('code-' + b.dataset.code);
+    const box = $('code-' + b.dataset.code);
     box.hidden = false;
     box.innerHTML = `<p class="small" style="margin:0">Dans l’appli installée sur son écran d’accueil (ou sur l’ordinateur, à l’adresse <b>${esc(location.host)}</b>), choisir « Je suis élève » puis taper :</p><div class="bigcode">${r.code}</div><p class="small muted" style="margin:0">Valable ${r.minutes} minutes, une seule fois.</p>`;
   });
   $app.querySelectorAll('[data-dev]').forEach((b) => b.onclick = async () => {
-    if (!confirm(`Retirer « ${b.dataset.what} » ? Il faudra renvoyer le lien pour l’utiliser à nouveau.`)) return;
-    if (await call('rv_device_del', { p_device: +b.dataset.dev }, 'Appareil retiré')) screenParent();
+    if (!await ask({ title: `Retirer « ${b.dataset.what} » ?`, text: 'Cet appareil ne pourra plus ouvrir l’appli. Il faudra renvoyer le lien pour l’utiliser à nouveau.', ok: 'Retirer', danger: true })) return;
+    if (await call('rv_device_del', { p_device: +b.dataset.dev }, 'Appareil retiré')) reload();
   });
   $app.querySelectorAll('[data-pinset]').forEach((b) => b.onclick = async () => {
     const v = document.querySelector(`[data-pinin="${b.dataset.pinset}"]`).value.trim();
     if (!/^\d{4}$/.test(v)) return toast('Le code doit faire 4 chiffres.');
-    if (await call('rv_child_set', { p_child: b.dataset.pinset, p_name: null, p_pin: v }, 'Code enregistré ✓')) screenParent();
+    if (await call('rv_child_set', { p_child: b.dataset.pinset, p_name: null, p_pin: v }, 'Code enregistré ✓')) reload();
+  });
+  if (st) $app.querySelectorAll(`input[name="g-${st.id}"]`).forEach((i) => i.onchange = async () => {
+    if (await call('rv_child_set', { p_child: st.id, p_name: null, p_pin: null, p_gender: i.value || 'x' }, 'Enregistré ✓')) { st.gender = i.value || null; }
   });
   $app.querySelectorAll('[data-renew]').forEach((b) => b.onclick = async () => {
-    if (!confirm('Créer un nouveau lien ? L’ancien lien ne fonctionnera plus. Les appareils déjà associés restent connectés (tu peux les retirer un par un).')) return;
+    if (!await ask({ title: 'Créer un nouveau lien ?', text: 'L’ancien lien ne fonctionnera plus. Les appareils déjà associés restent connectés (tu peux les retirer un par un).', ok: 'Créer le nouveau lien' })) return;
     const r = await call('rv_child_link', { p_child: b.dataset.renew, p_renew: true }, 'Nouveau lien créé'); if (!r) return;
     shareText(APP_NAME, `${b.dataset.name}, voici ton nouveau lien pour réviser la physique :`, childUrl(r.secret));
   });
   $app.querySelectorAll('[data-cdel]').forEach((b) => b.onclick = async () => {
-    if (!confirm(`Supprimer définitivement le profil de ${b.dataset.name}, ses progrès et toutes ses réponses ?`)) return;
-    if (await call('rv_child_del', { p_child: b.dataset.cdel }, 'Profil supprimé')) screenParent();
+    if (!await ask({ title: `Supprimer le profil de ${b.dataset.name} ?`, text: 'Ses progrès et toutes ses réponses seront effacés définitivement.', ok: 'Supprimer définitivement', danger: true })) return;
+    if (await call('rv_child_del', { p_child: b.dataset.cdel }, 'Profil supprimé')) { PV.child = null; savePV(); screenParent(); }
   });
-  $app.querySelectorAll('input[name="notify"]').forEach((i) => i.onchange = () => { FAM.notify = i.value; call('rv_family_set', { p_notify: i.value, p_weekly: null }, 'Réglage enregistré ✓'); });
-  const fw = document.getElementById('fweek'); if (fw) fw.onchange = () => { FAM.weekly = fw.checked; call('rv_family_set', { p_notify: null, p_weekly: fw.checked }, 'Réglage enregistré ✓'); };
-  const ia = document.getElementById('invadd');
-  if (ia) ia.onclick = async () => {
-    const r = await call('rv_invite_create', { p_note: document.getElementById('invnote').value.trim() }); if (!r) return;
-    await screenParent();
-    inviteShare(r.code);
+  // E-mails, invitations, compte
+  $app.querySelectorAll('input[name="notify"]').forEach((i) => i.onchange = () => { FAM.notify = i.value; DASH.family.notify = i.value; call('rv_family_set', { p_notify: i.value, p_weekly: null }, 'Réglage enregistré ✓'); });
+  if ($('fweek')) $('fweek').onchange = () => { FAM.weekly = $('fweek').checked; DASH.family.weekly = FAM.weekly; call('rv_family_set', { p_notify: null, p_weekly: FAM.weekly }, 'Réglage enregistré ✓'); };
+  if ($('invadd')) $('invadd').onclick = async () => {
+    const r = await call('rv_invite_create', { p_note: $('invnote').value.trim() }); if (!r) return;
+    await reload(); inviteShare(r.code);
   };
   $app.querySelectorAll('[data-inv]').forEach((b) => b.onclick = () => inviteShare(b.dataset.inv));
-  const fd = document.getElementById('fdel');
-  if (fd) fd.onclick = async () => {
-    const v = prompt(`Pour confirmer la suppression définitive, tape ton adresse e-mail (${FAM.email}) :`);
+  if ($('fdel')) $('fdel').onclick = async () => {
+    const v = await ask({ title: 'Supprimer ton compte ?', text: `Tout sera effacé définitivement. Pour confirmer, tape ton adresse e-mail (${esc(FAM.email)}).`, input: 'Ton adresse e-mail', type: 'email', ok: 'Supprimer mon compte', danger: true });
     if (v == null) return;
     try {
       const r = await rpc('rv_family_delete', { p_token: token, p_confirm: v });
-      if (r.ok) { alert('Ton compte et toutes les données associées ont été supprimés.'); return logout(); }
+      if (r.ok) { await ask({ title: 'Compte supprimé', text: 'Ton compte et toutes les données associées ont été supprimés.', ok: 'OK', cancel: false }); return logout(); }
       toast(r.error === 'confirm' ? 'L’adresse ne correspond pas : rien n’a été supprimé.' : 'Impossible pour l’instant.');
     } catch (e) { toast('Pas de connexion internet.'); }
   };
-}
-function inviteShare(code) {
-  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique de 3e. Crée ton espace parent (« Je suis parent ») avec ton adresse e-mail et ce code d’invitation : ${code}`, `${location.origin}${location.pathname}`);
-}
-function planCard(ok) {
-  const fmt = (d) => d ? d.split('-').reverse().join('/') : '';
-  const skillOpts = SKILLS.map((k) => `<label class="ck"><input type="checkbox" value="${k.id}"> ${k.icon} ${k.short}</label>`).join('');
-  const ex = exams(), cp = PLAN.filter((p) => p.kind === 'copie');
-  return `<div class="card stack">
-    <h2>📅 Contrôles à venir</h2>
-    ${!ok ? '<p class="small" style="color:var(--bad)">La mise à jour du serveur n’est pas encore faite : cette partie sera active juste après.</p>' : ''}
-    ${ex.length ? `<table>${ex.map((e) => `<tr><td><b>${fmt(e.day)}</b> • ${esc(e.label || 'Contrôle')}<br><span class="small muted">${(e.skills || []).map((k) => (SKILLS.find((s) => s.id === k) || {}).short).join(', ') || 'toutes les compétences'}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}" data-what="le contrôle du ${fmt(e.day)}">Supprimer</button></td></tr>`).join('')}</table>` : '<p class="small muted">Aucun contrôle saisi. Dès qu’une date est connue, l’appli prépare l’élève : programme ciblé 7 jours avant, contrôle blanc à J-2.</p>'}
-    <details><summary><b>+ Ajouter un contrôle</b></summary>
-      <div class="stack" style="margin-top:8px">
-        <input type="date" id="exday"><input id="exlabel" maxlength="120" placeholder="Titre, ex. : Contrôle vitesse et distance d’arrêt">
-        <details><summary class="small"><b>Préciser les compétences</b> (facultatif, sinon toutes)</summary><div class="cks" id="exsk" style="margin-top:8px">${skillOpts}</div></details>
-        <button class="btn" id="exadd">Enregistrer le contrôle</button></div>
-    </details>
-    <h2 style="margin-top:8px">📝 Erreurs relevées sur les copies</h2>
-    ${FAM.admin ? '<div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée à Claude, qui relève les erreurs pour toi.</div>' : ''}
-    <p class="small muted" style="margin:0">Chaque erreur saisie revient dans « À revoir » dès la prochaine connexion, puis à J+1, J+3, J+7 et J+21.</p>
-    ${cp.length ? `<table>${cp.slice(-8).reverse().map((e) => `<tr><td>${esc(e.label || '')}<br><span class="small muted">${esc(ERR_LABELS[e.error_code] || e.error_code || '')}</span></td><td style="text-align:right"><button class="link" data-del="${e.id}" data-what="l’erreur « ${esc(e.label || '')} »">Supprimer</button></td></tr>`).join('')}</table>` : ''}
-    <details><summary><b>+ Ajouter une erreur à la main</b></summary>
-      <div class="stack" style="margin-top:8px">
-        <input id="cplabel" maxlength="120" placeholder="Exercice, ex. : contrôle du 12/11, exercice 3">
-        <label class="small muted" for="cptype" style="margin:0">Ce qui n’allait pas :</label>
-        <select id="cptype">${COPY_TYPES.map(([t], i) => `<option value="${i}">${esc(t)}</option>`).join('')}</select>
-        <button class="btn" id="cpadd">Enregistrer l’erreur</button></div>
-    </details>
-  </div>`;
-}
-function bindPlanCard() {
+  if ($('out')) $('out').onclick = async () => { if (await ask({ title: 'Te déconnecter de cet appareil ?', text: 'Tu pourras revenir avec un nouveau code reçu par e-mail.', ok: 'Me déconnecter' })) { DASH = null; logout(); } };
+  if ($('psw')) $('psw').onclick = () => { DASH = null; switchProfile(); };
+  // Aperçu de l'appli de l'enfant
+  $app.querySelectorAll('[data-pv]').forEach((b) => b.onclick = () => {
+    const c = (DASH.students || []).find((x) => x.id === b.dataset.pv);
+    S = Object.assign(defaultState(), JSON.parse(JSON.stringify(c.state || {})));
+    S.mastery = Object.assign(defaultState().mastery, S.mastery);
+    if (!S.pseudo) S.pseudo = c.label || 'Élève';
+    PLAN = childPlan(c); PREVIEW_G = c.gender || null;
+    PREVIEW = true; document.body.classList.toggle('large', false);
+    route();
+  });
+  // Contrôles et copies (rattachés à l'enfant choisi)
   const add = async (args) => {
     try {
-      const r = await rpc('rv_plan_add', Object.assign({ p_token: token, p_day: null, p_label: null, p_skills: [], p_level: 2, p_error_code: null }, args));
+      const r = await rpc('rv_plan_add', Object.assign({ p_token: token, p_day: null, p_label: null, p_skills: [], p_level: 2, p_error_code: null, p_child: st.id }, args));
       if (r.error) return toast(r.error === 'auth' ? 'Reconnecte-toi.' : 'Erreur : ' + r.error);
-      toast('Enregistré ✓'); screenParent();
+      toast('Enregistré ✓'); reload();
     } catch (e) { toast('Impossible pour l’instant (pas de connexion ?).'); }
   };
-  const ea = document.getElementById('exadd');
-  if (ea) ea.onclick = () => {
-    const day = document.getElementById('exday').value;
+  if ($('exadd')) $('exadd').onclick = () => {
+    const day = $('exday').value;
     if (!day) return toast('Choisis la date du contrôle.');
-    add({ p_kind: 'exam', p_day: day, p_label: document.getElementById('exlabel').value.trim() || 'Contrôle de physique',
-      p_skills: [...document.querySelectorAll('#exsk input:checked')].map((x) => x.value) });
+    add({ p_kind: 'exam', p_day: day, p_label: $('exlabel').value.trim() || 'Contrôle de physique', p_skills: [...document.querySelectorAll('#exsk input:checked')].map((x) => x.value) });
   };
-  const ca = document.getElementById('cpadd');
-  if (ca) ca.onclick = () => {
-    const [txt, skill, code] = COPY_TYPES[+document.getElementById('cptype').value];
-    add({ p_kind: 'copie', p_label: document.getElementById('cplabel').value.trim() || txt, p_skills: [skill], p_level: 2, p_error_code: code });
+  if ($('cpadd')) $('cpadd').onclick = () => {
+    const [txt, skill, code] = COPY_TYPES[+$('cptype').value];
+    add({ p_kind: 'copie', p_label: $('cplabel').value.trim() || txt, p_skills: [skill], p_level: 2, p_error_code: code });
   };
   $app.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
-    if (!confirm(`Supprimer ${b.dataset.what || 'cet élément'} ?`)) return;
-    try { await rpc('rv_plan_del', { p_token: token, p_id: b.dataset.del }); toast('Supprimé'); screenParent(); } catch (e) { toast('Impossible pour l’instant.'); }
+    if (!await ask({ title: `Supprimer ${b.dataset.what} ?`, ok: 'Supprimer', danger: true })) return;
+    try { await rpc('rv_plan_del', { p_token: token, p_id: b.dataset.del }); toast('Supprimé'); reload(); } catch (e) { toast('Impossible pour l’instant.'); }
   });
 }
 
@@ -1848,6 +1960,7 @@ async function boot() {
     const r = await rpc('rv_get_state', { p_token: token });
     if (r.error) return logout(true);
     if (r.name && curAcct().name !== r.name) { curAcct().name = r.name; saveAccts(); }
+    if ('gender' in r && curAcct().g !== r.gender) { curAcct().g = r.gender; saveAccts(); }
     S = Object.assign(defaultState(), cached || {}, r.state || {});
     // garder la version la plus avancée si le cache local est en avance (hors ligne)
     if (cached && (cached.xp || 0) > (r.state.xp || 0)) S = Object.assign(defaultState(), cached);

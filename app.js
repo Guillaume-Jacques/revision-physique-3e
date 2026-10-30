@@ -1911,7 +1911,7 @@ function tabControles(st) {
   </div>
   <div class="card stack">
     <h2>📝 Erreurs relevées sur les copies</h2>
-    ${FAM.admin ? '<div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée à Claude, qui relève les erreurs pour toi.</div>' : ''}
+    ${FAM.admin ? '<div class="tip">📸 <b>Le plus simple :</b> envoie la photo de la copie corrigée : l’application relève les erreurs pour toi.</div>' : ''}
     <p class="small muted" style="margin:0">Chaque erreur saisie revient dans « À revoir » dès la prochaine connexion, puis à J+1, J+3, J+7 et J+21.</p>
     ${cp.length ? `<table>${cp.slice(-8).reverse().map((e) => `<tr><td>${esc(e.label || '')}${fam(e)}<br><span class="small muted">${esc(ERR_LABELS[e.error_code] || e.error_code || '')}</span></td><td class="tact"><button class="more" data-del="${e.id}" data-what="l’erreur « ${esc(e.label || '')} »" aria-label="Options">⋯</button></td></tr>`).join('')}</table>` : ''}
     <details><summary><b>+ Ajouter une erreur à la main</b></summary>
@@ -2151,7 +2151,7 @@ function route() {
   if (!S.onboard && !S.diagDone) return screenWelcome();
   screenHome();
 }
-/* Erreurs relevées sur les copies (saisies par le parent ou par Claude) → file « À revoir », dès aujourd’hui */
+/* Erreurs relevées sur les copies (saisies par le parent ou par l’application) → file « À revoir », dès aujourd’hui */
 function mergeCopies() {
   S.copieSeen = S.copieSeen || [];
   PLAN.filter((p) => p.kind === 'copie' && !S.copieSeen.includes(p.id)).forEach((p) => {

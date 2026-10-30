@@ -69,7 +69,7 @@ async function digest(kind: 'evening' | 'weekly') {
   for (const [to, kids] of Object.entries(byMail)) {
     const blocks = kids.map((k) => {
       const errs = (k.errors || []).map((e: any) => `${esc(ERR[e.code] || e.code)} (${e.n} fois)`);
-      if (kind === 'weekly' && !k.n) return `<p><b>${esc(k.child)}</b> n’a pas révisé cette semaine. Un petit mot d’encouragement peut suffire : 10 minutes par jour, c’est déjà bien.</p>`;
+      if (kind === 'weekly' && !k.n) return `<p><b>${esc(k.child)}</b> n’a pas révisé cette semaine. Un petit mot d’encouragement peut suffire : 15 minutes par jour, c’est déjà bien.</p>`;
       return `<p style="margin:0 0 6px"><b>${esc(k.child)}</b></p><ul style="margin:0 0 14px;padding-left:20px">
         ${kind === 'weekly' ? `<li>${k.days} jour${k.days > 1 ? 's' : ''} de révision sur 7 ${k.days >= 4 ? '✅' : '(objectif : 4)'}</li>` : ''}
         <li>${k.n} exercice${k.n > 1 ? 's' : ''}, ${pct(k.ok, k.n)} % de réussite, environ ${mins(k.ms)} min</li>

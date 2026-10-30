@@ -489,7 +489,7 @@ function screenPicker() {
     <div class="stack" style="margin-top:16px">${ACCTS.map((a, i) => `
       <button class="pick" data-i="${i}"><span class="avatar">${a.role === 'parent' ? '👪' : esc((a.name || '?')[0].toUpperCase())}</span><b>${esc(a.role === 'parent' ? 'Espace parent' : a.name)}</b>${a.role !== 'parent' && a.pin ? '<span class="small muted">🔒</span>' : ''}</button>`).join('')}
     </div>
-    <div class="center" style="margin-top:14px"><button class="link" id="padd">+ Ajouter un profil sur cet appareil</button></div>`);
+    <div class="center" style="margin-top:14px"><button class="link" id="padd">+ Se connecter avec un autre compte (parent ou élève)</button></div>`);
   $app.querySelectorAll('.pick').forEach((b) => b.onclick = () => {
     const a = ACCTS[+b.dataset.i];
     if (a.role !== 'parent' && a.pin) return screenUnlock(a);
@@ -690,8 +690,8 @@ function openSettings() {
     <button class="btn ghost" id="sAa">${S.large ? '🔤 Texte normal' : '🔠 Texte plus grand'}</button>
     <button class="btn ghost" id="sCalc">🧮 Ma calculatrice${calcOf(S.calc) ? ' : ' + esc(calcOf(S.calc).name) : ''}</button>
     ${isStandalone() ? '' : '<button class="btn ghost" id="sInst">📲 Mettre l’appli sur mon téléphone</button><p class="small muted" id="sHow" hidden></p>'}
-    ${PREVIEW ? '' : `${ACCTS.length > 1 ? '<button class="btn ghost" id="sSw">👥 Changer de profil</button>' : ''}<button class="btn ghost" id="sAdd">➕ Ajouter un profil sur cet appareil</button>`}
-    <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Retirer mon profil de cet appareil'}</button>
+    ${PREVIEW ? '' : `${ACCTS.length > 1 ? '<button class="btn ghost" id="sSw">👥 Changer de profil</button>' : ''}<button class="btn ghost" id="sAdd">👪 Se connecter en parent (ou avec un autre compte)</button>`}
+    <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Me déconnecter de cet appareil'}</button>
     <button class="link" id="sClose">Fermer</button></div></div>`);
   const close = () => { const m = document.getElementById('qmodal'); if (m) m.remove(); };
   document.getElementById('qmodal').onclick = (e) => { if (e.target.id === 'qmodal') close(); };

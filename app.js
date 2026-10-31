@@ -1119,9 +1119,10 @@ function nextItem() {
 }
 function askQuit() {
   if (document.getElementById('qmodal')) return;
-  const test = RUN && (RUN.mode === 'diag' || RUN.mode === 'boss');
+  const test = RUN && (RUN.mode === 'diag' || RUN.mode === 'boss' || RUN.mode === 'duel');
   const msg = RUN && RUN.mode === 'diag' ? 'Ce bloc reprendra depuis le début la prochaine fois.'
     : RUN && RUN.mode === 'boss' ? 'Ce contrôle blanc ne sera pas noté. Tu pourras le retenter quand tu veux.'
+    : RUN && RUN.mode === 'duel' ? 'Le défi ne sera pas envoyé (ni ton score).'
     : 'Tout ce que tu as fait est déjà enregistré (XP, médailles, progrès).';
   document.body.insertAdjacentHTML('beforeend', `<div class="modal" id="qmodal" role="dialog" aria-modal="true"><div class="card stack pop">
     <h2>Quitter ${test ? 'maintenant' : 'la séance'} ?</h2><p class="muted">${msg}</p>
@@ -1146,7 +1147,7 @@ function headerHtml() {
       <span class="small muted">${RUN.idx + 1}/${RUN.total}</span>${RUN.mode === 'boss' ? '<span class="pill timer" id="timer"></span>' : ''}</div>
     <div class="row between wrap"><span class="chip">${sk.icon} ${sk.name}</span>${tag}<span class="small muted">${RUN_LABEL[RUN.mode] || ''}</span></div>`;
 }
-const isTest = () => RUN.mode === 'diag' || RUN.mode === 'boss';
+const isTest = () => RUN.mode === 'diag' || RUN.mode === 'boss' || RUN.mode === 'duel';
 /* Indice de confiance : demandé une fois, après « Valider » (« sûre / j'hésite / au hasard ») */
 function askConf(cb) {
   if (document.getElementById('csheet')) return;
@@ -1380,7 +1381,7 @@ function finishItem(correct, errCode, raw, lastMsg) {
   else if (!clean || lucky) addReview(it.skill, it.level, code || 'autre', { redac: it.type === 'steps' });
 
   if (RUN.mode === 'diag') { addXP(5); saveState(); RUN.idx++; return nextItem(); }
-  if (RUN.mode === 'boss') { RUN.idx++; return nextItem(); }
+  if (RUN.mode === 'boss' || RUN.mode === 'duel') { RUN.idx++; return nextItem(); }
 
   let gained = correct ? (lucky ? 5 : clean ? 15 : 10) : 2;
   if (RUN.mode === 'bat' && correct) gained += 5;

@@ -176,15 +176,18 @@
       : `<div class="card"><p style="margin:0">🕵️ La correction est prête : ton parent la vérifie. Tu la retrouveras ici, avec les exercices pour t’entraîner.</p></div>`;
     else if (c.status === 'erreur') body = `<div class="card stack"><p style="margin:0">😕 La relecture n’a pas marché${a.lisible === false ? ' : les photos ne ressemblent pas à une copie' : ''}. Reprends les photos bien à plat, avec de la lumière, puis relance.</p>
         ${(a.tries || 0) < 4 && editable ? '<button class="btn" id="cpGo">🔁 Relancer la correction</button>' : ''}</div>`;
-    else body = `<div class="card stack"><p style="margin:0">${c.n ? `${c.n} photo${c.n > 1 ? 's' : ''} prête${c.n > 1 ? 's' : ''}. Ajoute toutes les pages, puis lance la correction.` : 'Prends en photo chaque page de la copie corrigée, bien à plat et lisible.'}</p>
-        ${c.n && editable ? `<button class="btn" id="cpGo">${kid ? '📨 Envoyer pour correction' : '✨ Lancer la correction'}</button>` : ''}</div>`;
+    const shoot = editable && c.n < 8 ? `<label class="btn" for="cpCam">📷 Prendre une photo</label><label class="btn ghost" for="cpLib">🖼️ Choisir dans mes photos</label>` : '';
+    if (c.status === 'photos' || !c.status) body = `<div class="card stack"><p style="margin:0">${c.n ? `<b>${c.n} page${c.n > 1 ? 's' : ''} ajoutée${c.n > 1 ? 's' : ''}.</b> S’il y a d’autres pages, ajoute-les, puis lance la correction.` : '<b>Dernière étape : les photos.</b> Prends chaque page de la copie corrigée, bien à plat, près d’une fenêtre.'}</p>
+        ${PREVIEW ? '<p class="small muted" style="margin:0">Aperçu : les photos s’ajoutent depuis l’appli de l’enfant ou depuis l’espace parent.</p>' : shoot}
+        ${c.n && editable ? `<button class="btn ${c.n ? '' : 'ghost'}" id="cpGo" style="margin-top:6px">${kid ? '📨 Envoyer pour correction' : '✨ Lancer la correction'}</button>` : ''}</div>`;
+    else if (c.status === 'erreur' && shoot) body = body.replace('</div>', `${shoot}</div>`);
     render(`<div class="${kid ? 'stab' : 'pz'}">
       <button class="link" id="cpBack">← Retour</button>
       <div class="ptitle"><h1>${esc(c.label || 'Contrôle')}</h1><span class="small muted">${dayTxt(c)}</span></div>
       <div class="card stack">
         <div class="row between"><b>${c.note != null ? `Note : ${fmtNote(c)}` : 'Note pas encore saisie'}</b>${!PREVIEW && (parent || c.status !== 'validee') ? '<button class="link" id="cpEdit">Modifier</button>' : ''}</div>
-        <div class="thumbs" id="cpThumbs">${Array.from({ length: c.n }, (_, i) => `<div class="th" data-i="${i}"><span class="small muted" style="display:block;padding:8px">…</span></div>`).join('')}
-          ${editable && c.n < 8 ? '<button class="th add" id="cpAdd"><span style="font-size:1.6em">📷</span>Ajouter</button>' : ''}</div>
+        ${c.n ? `<div class="thumbs" id="cpThumbs">` : ''}${Array.from({ length: c.n }, (_, i) => `<div class="th" data-i="${i}"><span class="small muted" style="display:block;padding:8px">…</span></div>`).join('')}
+          ${editable && c.n > 0 && c.n < 8 ? '<button class="th add" id="cpAdd"><span style="font-size:1.6em">📷</span>Ajouter</button>' : ''}${c.n ? '</div>' : ''}
       </div>
       ${body}
       ${parent || (c.by === 'student' && c.status !== 'validee') ? '<button class="link danger" id="cpDel" style="margin-top:8px">Supprimer cette copie</button>' : ''}
@@ -262,7 +265,6 @@
     if (r.error) return toast(r.error === 'auth' ? (role === 'test' ? 'Pas disponible sur le profil de test.' : 'Reconnecte-toi.') : r.error === 'limit' ? '10 copies par jour au maximum.' : 'Impossible pour l’instant (pas de connexion ?).');
     await loadCopies(true);
     screenCopy(r.id, back);
-    setTimeout(() => { const cam = document.getElementById('cpAdd'); if (cam) cam.click(); }, 250);
   }
   // Lecture des champs de la fenêtre « nouvelle copie » au moment où on touche « Continuer »
   let LAST_FORM = null;

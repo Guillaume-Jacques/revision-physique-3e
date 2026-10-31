@@ -366,6 +366,12 @@ function screenStudentJoin(err) {
       <p>Demande à ton parent ton <b>lien d’accès</b>. Ouvre-le une seule fois sur cet appareil : ensuite l’appli s’ouvrira directement sur ton profil.</p>
     </div>
     <div class="card stack">
+      <h3>Pas encore inscrit(e) ?</h3>
+      <p class="small" style="margin:0">C’est un <b>parent</b> qui t’inscrit : il entre son adresse e-mail, ajoute ton prénom et t’envoie ton lien. Ça prend une minute.</p>
+      <button class="btn ghost" id="jsend">📲 Envoyer l’appli à mon parent</button>
+      <button class="link" id="jpar" style="padding:0">Mon parent est à côté de moi : il s’inscrit ici</button>
+    </div>
+    <div class="card stack">
       <h3>Sur un ordinateur ?</h3>
       <p class="small muted" style="margin:0">Tape le code de 6 lettres que ton parent t’affiche (il est valable 10 minutes).</p>
       <div class="answer"><input id="jcode" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="Ex. : KPRTWZ" style="text-transform:uppercase;letter-spacing:4px;font-weight:800"></div>
@@ -391,7 +397,33 @@ function screenStudentJoin(err) {
   document.getElementById('jgo').onclick = go;
   document.getElementById('jcode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   document.getElementById('jold').onclick = () => screenLogin();
+  document.getElementById('jsend').onclick = () => shareToParent();
+  document.getElementById('jpar').onclick = () => screenParentLogin();
   document.getElementById('jback').onclick = () => screenLanding();
+}
+/* Partage de l'appli entre élèves : le lien #ami ouvre une page qui renvoie vers un parent */
+const appUrl = () => `${location.origin}${location.pathname}`;
+function shareToParent() {
+  shareText(APP_NAME, `Bonjour, je voudrais utiliser ${APP_NAME} pour réviser la physique-chimie. C’est toi qui dois m’inscrire : ouvre le lien, touche « Je suis parent », entre ton adresse e-mail puis ajoute mon prénom. Ensuite tu m’envoies mon lien d’accès.`, appUrl());
+}
+function shareToFriend() {
+  shareText(APP_NAME, `J’utilise ${APP_NAME} pour réviser la physique-chimie de 3e : cours, exercices et contrôles types. Pour l’avoir, ouvre ce lien et montre-le à un de tes parents : c’est lui qui t’inscrit, en une minute.`, appUrl() + '#ami');
+}
+function screenFriend() {
+  render(`${brandHead('')}
+    <div class="card stack">
+      <span class="chip">👋 Un ami te recommande l’appli</span>
+      <h2>Réviser la physique-chimie de 3e</h2>
+      <p style="margin:0">Des cours courts, des exercices corrigés et des contrôles types, environ 15 minutes par jour.</p>
+      <p style="margin:0"><b>Pour t’inscrire, il faut un parent</b> : il entre son adresse e-mail, ajoute ton prénom et t’envoie ton lien d’accès.</p>
+      <button class="btn" id="fpar">Je suis parent : inscrire mon enfant</button>
+      <button class="btn ghost" id="fsend">📲 Envoyer l’appli à mon parent</button>
+    </div>
+    <div class="center"><button class="link" id="fmore">Découvrir comment ça marche</button></div>
+    ${legal()}`);
+  document.getElementById('fpar').onclick = () => screenParentLogin();
+  document.getElementById('fsend').onclick = () => shareToParent();
+  document.getElementById('fmore').onclick = () => screenLanding();
 }
 function screenParentLogin(st) {
   st = st || {};
@@ -696,6 +728,7 @@ function openSettings() {
     <h2>Réglages</h2>
     <button class="btn ghost" id="sAa">${S.large ? '🔤 Texte normal' : '🔠 Texte plus grand'}</button>
     <button class="btn ghost" id="sCalc">🧮 Ma calculatrice${calcOf(S.calc) ? ' : ' + esc(calcOf(S.calc).name) : ''}</button>
+    ${PREVIEW ? '' : '<button class="btn ghost" id="sFr">📣 Faire découvrir l’appli à un ami</button>'}
     ${isStandalone() ? '' : '<button class="btn ghost" id="sInst">📲 Mettre l’appli sur mon téléphone</button><p class="small muted" id="sHow" hidden></p>'}
     ${PREVIEW ? '' : `${ACCTS.length > 1 ? '<button class="btn ghost" id="sSw">👥 Changer de profil</button>' : ''}<button class="btn ghost" id="sAdd">👪 Se connecter en parent (ou avec un autre compte)</button>`}
     <button class="btn ghost" id="sOut">${PREVIEW ? '↩ Revenir au tableau de bord' : '🚪 Me déconnecter de cet appareil'}</button>
@@ -705,6 +738,7 @@ function openSettings() {
   document.getElementById('sClose').onclick = close;
   document.getElementById('sCalc').onclick = () => { close(); openCalc(); };
   document.getElementById('sAa').onclick = () => { S.large = !S.large; document.body.classList.toggle('large', S.large); saveState(); close(); screenHome(); };
+  const sf = document.getElementById('sFr'); if (sf) sf.onclick = () => { close(); shareToFriend(); };
   const si = document.getElementById('sInst');
   if (si) si.onclick = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; close(); return; } const h = document.getElementById('sHow'); h.innerHTML = installHow(); h.hidden = false; };
   const sw = document.getElementById('sSw'); if (sw) sw.onclick = () => { close(); switchProfile(); };
@@ -2194,6 +2228,7 @@ function mergeCopies() {
 async function boot() {
   const h = location.hash;
   if (/^#[mj]=[0-9a-f-]{36}$/i.test(h)) { history.replaceState(null, '', location.pathname); return handleLink(h); }
+  if (h === '#ami') { history.replaceState(null, '', location.pathname); if (!ACCTS.length) return screenFriend(); }
   if (!ACCTS.length) return screenLanding();
   if (!token || (ACCTS.length > 1 && !UNLOCKED)) {
     if (ACCTS.length === 1) useAcct(ACCTS[0]); else return screenPicker();

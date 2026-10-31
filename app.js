@@ -432,6 +432,11 @@ function screenParentLogin(st) {
     <div class="card stack">
       <h2>Espace parent</h2>
       <p class="small muted" style="margin:0">Pas de mot de passe : tu reçois un code de connexion par e-mail.</p>
+      ${ACCTS.some((x) => x.role === 'parent') ? '' : `<details class="pfirst" ${st.email ? '' : 'open'}><summary><b>Première fois ? C’est simple, en 3 étapes</b></summary>
+        <div class="howstep"><span>1</span><p><b>Entre ton adresse e-mail</b> ci-dessous et touche « Recevoir mon code ». La première fois, une case apparaît : coche-la et touche à nouveau.</p></div>
+        <div class="howstep"><span>2</span><p><b>Tape le code à 6 chiffres</b> reçu par e-mail : ton espace parent est créé.</p></div>
+        <div class="howstep"><span>3</span><p><b>Ajoute le prénom de ton enfant</b>, puis envoie-lui son lien par WhatsApp ou SMS. Il l’ouvre une fois sur son téléphone, et c’est parti.</p></div>
+      </details>`}
       <label class="small" for="pmail"><b>Ton adresse e-mail</b></label>
       <div class="answer"><input id="pmail" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="prenom@exemple.fr" value="${esc(st.email || '')}"></div>
       <div id="pinv" ${st.invite ? '' : 'hidden'} class="stack">

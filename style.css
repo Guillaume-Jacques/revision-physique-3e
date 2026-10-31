@@ -349,3 +349,7 @@ table.cmp td { font-size: .95em; }
 .acts #boss { order: 4; }
 .acts #bat { order: 5; }
 .acts #calc { order: 6; grid-column: 1 / -1; }
+
+.pfirst { background: var(--accent-soft); border-radius: 14px; padding: 10px 12px; }
+.pfirst summary { cursor: pointer; }
+.pfirst .howstep { margin-top: 10px; }

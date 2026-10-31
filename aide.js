@@ -8,6 +8,7 @@
   const AIDE = {
     eleve: [
       ['Premiers pas', [
+        ['L’appli suit-elle ce que je fais en classe ?', 'Oui, si tu lui dis ! Touche <b>⚙️ › « 📚 Où en est ma classe »</b> et indique pour chaque chapitre : pas encore vu, on le fait en ce moment, ou déjà vu. L’appli te propose alors d’abord la leçon du moment et plus d’exercices dessus. Elle s’adapte aussi à tes erreurs (elles reviennent les jours suivants), à tes contrôles et à tes copies corrigées : ton appli n’est pas la même que celle de tes amis.'],
         ['Par où commencer ?', 'Ouvre l’appli et touche la carte <b>« Mission du jour »</b> en haut de l’accueil : c’est toujours la bonne chose à faire. L’appli choisit pour toi la leçon, les exercices ou les révisions du jour. Quand elle devient verte, ta mission est faite.'],
         ['Combien de temps par jour ?', 'Environ <b>15 minutes</b> (12 exercices). Une fois par semaine, souvent le mercredi ou le week-end, une <b>grande séance</b> d’environ 25 minutes est proposée. Mieux vaut 15 minutes chaque jour qu’une heure le dimanche.'],
         ['Physique ou chimie ?', 'Le sélecteur <b>⚡ Physique / ⚗️ Chimie</b> en haut de l’accueil change les activités, les compétences et les cours affichés. La mission du jour, elle, mélange les deux matières toute seule.'],

@@ -23,6 +23,13 @@
   };
   const myChap = () => (typeof PLAN !== 'undefined' && S ? pick(rowOf(PLAN), S) : {});
   const childChap = (st) => pick(rowOf(childPlan(st), st.id), childState(st));
+  /* Qui a fait le dernier réglage : { by: 'parent' | 'enfant', at: horodatage } */
+  const srcOf = (row, st) => {
+    const at = row ? new Date(row.created_at).getTime() : 0;
+    if (st && st.chap && Object.keys(st.chap).length && (st.chapAt || 0) > at) return { by: 'enfant', at: st.chapAt };
+    return row ? { by: 'parent', at } : null;
+  };
+  const when = (t) => new Date(t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   const lessonOfSkill = (id) => { const s = SKILLS.find((x) => x.id === id); if (s && s.lesson) return s.lesson; const c = COURS.find((x) => (x.skills || []).includes(id)); return c ? c.id : null; };
   const lessonDone = (L) => !!(S && S.cours && S.cours[L] && S.cours[L].done);
 
@@ -88,6 +95,7 @@
     return `<details class="card stack" id="chapcard" ${PV.chapOpen ? 'open' : ''}><summary><b>📚 Où en est la classe de ${esc(name)} ?</b> <span class="small muted">${set ? (cur.length ? 'En cours : ' + esc(cur.join(', ')) : 'renseigné') : 'pas encore renseigné'}</span></summary>
       <div class="stack" style="margin-top:8px">
         <p class="small" style="margin:0">Chaque professeur avance à son rythme. Indique ce que la classe a déjà fait et ce qu’elle fait en ce moment : l’appli de ${esc(name)} propose d’abord la leçon du chapitre en cours, fait travailler ce chapitre en priorité et attend pour les chapitres pas encore vus.</p>
+        ${(() => { const o = srcOf(rowOf(childPlan(st), st.id), childState(st)); return o ? `<p class="tip small" style="margin:0">${o.by === 'enfant' ? `✏️ Réglé par <b>${esc(name)}</b> dans son appli, ${when(o.at)}.` : `✏️ Réglé dans l’espace parent, ${when(o.at)}. ${esc(name)} le voit dans son appli.`}</p>` : ''; })()}
         ${groups}
         <button class="btn" id="chapsave" data-st="${st.id}">Enregistrer</button>
         <p class="small muted" style="margin:0">À mettre à jour à chaque nouveau chapitre (un coup d’œil au cahier suffit). « Je ne sais pas » laisse l’appli choisir. ${esc(name)} peut aussi le faire depuis son appli (⚙️ › « 📚 Où en est ma classe ») : c’est le dernier choix enregistré qui compte.</p>
@@ -99,7 +107,17 @@
     const baseSuivi = tabSuivi;
     tabSuivi = function (st) {
       const html = baseSuivi.apply(this, arguments);
-      if (!st || Object.keys(childChap(st)).length) return html;
+      if (!st) return html;
+      const o = srcOf(rowOf(childPlan(st), st.id), childState(st));
+      PV.chapSeen = PV.chapSeen || {};
+      if (o && o.by === 'enfant' && (PV.chapSeen[st.id] || 0) < o.at) {
+        const cur = COURS.filter((c) => childChap(st)[c.id] === 'c').map((c) => c.title);
+        const note = `<div class="card stack" id="chapnote"><b>📚 ${esc(childName(st))} a indiqué où en est sa classe</b>
+          <p class="small" style="margin:0">${when(o.at)}${cur.length ? ` • En cours : ${esc(cur.join(', '))}` : ''}. Son appli suit désormais ce réglage.</p>
+          <div class="actions"><button class="btn ghost" id="chapok">OK</button><button class="btn ghost" id="chapsee">Voir le détail</button></div></div>`;
+        return html.replace(/(<div class="ptitle">[\s\S]*?<\/div>)/, '$1' + note);
+      }
+      if (Object.keys(childChap(st)).length) return html;
       const nudge = `<div class="card stack"><b>📚 Où en est la classe de ${esc(childName(st))} ?</b>
         <p class="small" style="margin:0">Dis à l’appli quel chapitre le professeur fait en ce moment : les leçons et les exercices suivront le rythme de sa classe. 1 minute.</p>
         <button class="btn ghost" id="chapgo">Renseigner</button></div>`;
@@ -112,6 +130,9 @@
     baseDraw.apply(this, arguments);
     const go = document.getElementById('chapgo');
     if (go) go.onclick = () => { PV.tab = 'reglages'; PV.chapOpen = true; savePV(); drawParent(); const c = document.getElementById('chapcard'); if (c) c.scrollIntoView({ block: 'start' }); };
+    const seen = () => { const st = curChild(); if (!st) return; const o = srcOf(rowOf(childPlan(st), st.id), childState(st)); PV.chapSeen = PV.chapSeen || {}; PV.chapSeen[st.id] = o ? o.at : Date.now(); savePV(); };
+    const ok = document.getElementById('chapok'); if (ok) ok.onclick = () => { seen(); const n = document.getElementById('chapnote'); if (n) n.remove(); };
+    const see = document.getElementById('chapsee'); if (see) see.onclick = () => { seen(); PV.tab = 'reglages'; PV.chapOpen = true; savePV(); drawParent(); };
     const card = document.getElementById('chapcard');
     if (card) card.addEventListener('toggle', () => { PV.chapOpen = card.open; savePV(); });
     const b = document.getElementById('chapsave');
@@ -146,6 +167,7 @@
     document.body.insertAdjacentHTML('beforeend', `<div class="modal sheet-bg" id="chmodal" role="dialog" aria-modal="true"><div class="card sheet stack pop" style="max-height:85vh;overflow:auto">
       <h2>📚 Où en est ma classe ?</h2>
       <p class="small" style="margin:0">Regarde ton cahier : qu’est-ce que ton prof fait en ce moment ? L’appli te proposera d’abord cette leçon et plus d’exercices dessus, et attendra pour ce que tu n’as pas encore vu.</p>
+      ${(() => { const o = srcOf(rowOf(PLAN), S); return o ? `<p class="tip small" style="margin:0">${o.by === 'parent' ? `✏️ Ton parent a fait ce réglage ${when(o.at)}. Tu peux le changer si ta classe a avancé.` : `✏️ Tu as fait ce réglage ${when(o.at)}. Ton parent le voit dans son espace.`}</p>` : ''; })()}
       ${groups}
       <button class="btn" id="chsave">${PREVIEW ? 'Fermer' : 'Enregistrer'}</button>
       <button class="link" id="chclose">Annuler</button></div></div>`);
@@ -155,8 +177,8 @@
     document.getElementById('chsave').onclick = () => {
       if (PREVIEW) return close();
       const v = {}; document.querySelectorAll('[data-mych]').forEach((x) => { if (x.value) v[x.dataset.mych] = x.value; });
-      S.chap = v; S.chapAt = Date.now(); saveState(); close();
-      toast('C’est noté ✓ Ton appli suit ta classe.'); screenHome();
+      S.chap = v; S.chapAt = Date.now(); S.chapSeen = S.chapAt; saveState(); close();
+      toast('C’est noté ✓ Ton appli suit ta classe. Ton parent le verra.'); screenHome();
     };
   }
   const baseSettings = openSettings;
@@ -192,7 +214,21 @@
   const baseHome = screenHome;
   screenHome = function () {
     baseHome.apply(this, arguments);
-    if (PREVIEW || !S || !S.diagDone || Object.keys(myChap()).length || (S.chapLater && Date.now() < S.chapLater)) return;
+    if (!S) return;
+    const o = srcOf(typeof PLAN !== 'undefined' ? rowOf(PLAN) : null, S);
+    if (!PREVIEW && o && o.by === 'parent' && (S.chapSeen || 0) < o.at) {
+      const hero0 = $app.querySelector('.card.hero, .card.done');
+      if (hero0 && !document.getElementById('chpar')) {
+        const cur = COURS.filter((c) => myChap()[c.id] === 'c').map((c) => c.title);
+        hero0.insertAdjacentHTML('afterend', `<div class="card stack" id="chpar"><b>📚 Ton parent a indiqué où en est ta classe</b>
+          <p class="small" style="margin:0">${cur.length ? `En ce moment : <b>${esc(cur.join(', '))}</b>. ` : ''}Ton appli suit ce réglage. Si ce n’est plus à jour, tu peux le changer.</p>
+          <div class="actions"><button class="btn ghost" id="chparok">OK</button><button class="btn ghost" id="chparsee">Voir</button></div></div>`);
+        const done = () => { S.chapSeen = o.at; saveState(); const c = document.getElementById('chpar'); if (c) c.remove(); };
+        document.getElementById('chparok').onclick = done;
+        document.getElementById('chparsee').onclick = () => { done(); openChap(); };
+      }
+    }
+    if (PREVIEW || !S.diagDone || Object.keys(myChap()).length || (S.chapLater && Date.now() < S.chapLater)) return;
     const hero = $app.querySelector('.card.hero, .card.done');
     if (!hero || document.getElementById('chask')) return;
     hero.insertAdjacentHTML('afterend', `<div class="card stack" id="chask"><b>📚 Qu’est-ce que tu fais en classe en ce moment ?</b>

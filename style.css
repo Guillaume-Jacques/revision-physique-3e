@@ -353,3 +353,12 @@ table.cmp td { font-size: .95em; }
 .pfirst { background: var(--accent-soft); border-radius: 14px; padding: 10px 12px; }
 .pfirst summary { cursor: pointer; }
 .pfirst .howstep { margin-top: 10px; }
+
+/* Puissances de dix (31/10) : case d'exposant plus large, unité sous la ligne */
+.answer.sci .expw { flex: 0 0 auto; }
+.answer.sci .expw input.exp { width: 76px; text-align: center; }
+.answer.sci.expo { justify-content: flex-start; }
+.answer.sci.expo .x10 { font-size: 1.8em; }
+.answer.sci.expo .expw { margin-top: -18px; }
+.sciunit { display: flex; justify-content: flex-end; margin-top: -6px; }
+.sciunit .unit { display: inline-block; padding: 6px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-weight: 900; }

@@ -125,11 +125,15 @@ const subjSwitch = (sj) => `<div class="subjs sticky" role="tablist" aria-label=
 const subjLabel = (k) => k === 'mix' ? 'physique-chimie' : SUBJ[k].name.toLowerCase();
 
 /* ---------- Saisie des réponses : nombre simple, nombre négatif (±) ou écriture scientifique (… × 10ⁿ) ---------- */
+const isExpQ = (o) => !o.sci && /10<sup>\?<\/sup>|exposant/i.test((o.q || '') + ' ' + (o.prompt || ''));
 function ansField(id, o, ph) {
   const pm = (t) => `<button type="button" class="pm" data-pm="${t}" aria-label="Changer le signe">±</button>`;
   const unit = o.units ? '' : o.unit ? `<span class="unit">${esc(o.unit)}</span>` : '';
-  if (o.sci) return `<div class="answer sci"><input id="${id}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="2,67"><span class="x10">× 10</span><span class="expw">${pm(id + 'x')}<input id="${id}x" class="exp" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="−26"></span>${unit}</div>
-    <p class="small muted" style="margin:6px 0 0">Écris le nombre avant « × 10 », puis l’exposant en haut (touche ± pour le signe moins). <button type="button" class="link calc-help" style="padding:0">🧮 Ma calculatrice</button></p>`;
+  if (o.sci) return `<div class="answer sci"><input id="${id}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="2,67"><span class="x10">× 10</span><span class="expw">${pm(id + 'x')}<input id="${id}x" class="exp" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="?"></span></div>${unit ? `<div class="sciunit">${unit}</div>` : ''}
+    <p class="small muted" style="margin:6px 0 0">Écris le nombre avant « × 10 » et l’exposant dans la petite case en haut. Exposant négatif : touche <b>±</b>. <button type="button" class="link calc-help" style="padding:0">🧮 Ma calculatrice</button></p>`;
+  /* Question qui demande seulement l'exposant : le « 10 » est déjà écrit, l'élève tape juste l'exposant */
+  if (isExpQ(o)) return `<div class="answer sci expo"><span class="x10">10</span><span class="expw">${pm(id)}<input id="${id}" data-exp="1" class="exp" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="?"></span>${unit}</div>
+    <p class="small muted" style="margin:6px 0 0">Tape seulement l’exposant (le petit nombre en haut). Exposant négatif : touche <b>±</b>.</p>`;
   return `<div class="answer"><input id="${id}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="${ph || 'Ta réponse'}">${o.neg ? pm(id) : ''}${unit}</div>`;
 }
 function bindAns() {
@@ -139,17 +143,37 @@ function bindAns() {
   });
   document.querySelectorAll('.calc-help').forEach((b) => b.onclick = () => openCalc());
 }
+/* Puissances tapées à la main : « 10 5 », « 10^5 », « 10⁵ », « 2,67 × 10^-26 », « 2,67x10-26 » */
+const SUPC = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
+const unsup = (v) => String(v).replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, (m) => '^' + [...m].map((c) => SUPC[c]).join(''));
+function powOf(v, loose) { // « a × 10^n » → [a, n] ; « 10^n » → [1, n]
+  const t = unsup(v).replace(/\s+/g, ' ').trim().replace(/[−–]/g, '-').replace(/,/g, '.');
+  let m = t.match(/^(-?\d*\.?\d+) ?[×xX*·] ?10 ?\^? ?\(?(-? ?\d{1,3})\)?$/);
+  if (m) return [+m[1], +m[2].replace(' ', '')];
+  m = loose ? t.match(/^10 ?(?:\^ ?|\s)\(?(-? ?\d{1,3})\)?$/) : t.match(/^10 ?\^ ?\(?(-? ?\d{1,3})\)?$/);
+  if (m) return [1, +m[1].replace(' ', '')];
+  return null;
+}
 function readAns(id, sci) {
   const el = document.getElementById(id); if (!el) return null;
+  if (el.dataset.exp) { // case « exposant seul » : « 10 5 » ou « 10^5 » valent 5
+    const pw = powOf(el.value, true); if (pw && pw[0] === 1) return pw[1];
+    return parseNum(unsup(el.value).replace('^', ''));
+  }
+  const xe = sci ? document.getElementById(id + 'x') : null;
+  const tx = xe ? (xe.value || '').replace(/\s/g, '').replace(/[−–]/g, '-') : '';
+  const pw = powOf(el.value);
+  if (pw) return pw[0] * Math.pow(10, pw[1]); // puissance écrite en entier dans la grande case
+  if (sci && el.value.trim() === '' && /^-?\d{1,3}$/.test(tx)) return Math.pow(10, +tx); // case du nombre vide : 10ⁿ
   const m = parseNum(el.value); if (m === null) return null;
   if (!sci) return m;
-  const t = (document.getElementById(id + 'x').value || '').replace(/\s/g, '').replace(/[−–]/g, '-');
-  if (t === '' || t === '-') return m;
-  if (!/^-?\d{1,3}$/.test(t)) return null;
-  return m * Math.pow(10, +t);
+  if (tx === '' || tx === '-') return m;
+  if (!/^-?\d{1,3}$/.test(tx)) return null;
+  return m * Math.pow(10, +tx);
 }
 function rawAns(id, sci) {
   const el = document.getElementById(id); if (!el) return '';
+  if (el.dataset.exp) return `10^${el.value}`;
   if (!sci) return el.value;
   const x = (document.getElementById(id + 'x').value || '').trim();
   return x ? `${el.value} × 10^${x}` : el.value;
@@ -1164,7 +1188,7 @@ function askConf(cb) {
 function validate() {
   const c = RUN.cur, it = c.item;
   if (c.done) return;
-  if (it.type === 'num') { if (readAns('ans', it.sci) === null) return fb('hint', it.sci ? 'Écris le nombre avant « × 10 », par exemple 2,67, et un exposant entier.' : 'Écris un nombre, par exemple 3,25'); }
+  if (it.type === 'num') { if (readAns('ans', it.sci) === null) return fb('hint', it.sci ? 'Écris le nombre avant « × 10 », par exemple 2,67, et un exposant entier.' : document.getElementById('ans') && document.getElementById('ans').dataset.exp ? 'Tape seulement l’exposant, par exemple 5 ou −3.' : 'Écris un nombre, par exemple 3,25'); }
   else if (c.sel == null) return toast('Touche d’abord une réponse.');
   const go = () => it.type === 'num' ? checkNum() : checkQcm(c.sel, $app.querySelectorAll('.choice')[c.sel]);
   if (c.conf) return go();

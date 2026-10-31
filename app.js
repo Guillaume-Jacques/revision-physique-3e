@@ -2020,6 +2020,8 @@ const HELP_QA = [
   ['Et sur un ordinateur ?', 'Même principe : touche « 🔢 Afficher un code », puis ton enfant le tape une fois sur l’ordinateur, qui est ensuite reconnu.'],
   ['Un appareil a été perdu ou prêté ?', 'Dans Réglages, touche « Retirer » à côté de l’appareil : il ne pourra plus ouvrir l’appli. En cas de doute, « Créer un nouveau lien » désactive l’ancien lien.'],
   ['Puis-je voir ce que fait mon enfant ?', 'Oui : dans Suivi, « 👀 Voir son appli » t’ouvre son appli telle qu’il la voit, sans rien enregistrer. Tu reçois aussi les e-mails choisis dans Réglages › « ✉️ E-mails ».'],
+  ['Comment l’autre parent peut-il suivre le même enfant ?', 'Dans Réglages › « 👨‍👩‍👧 Parents de la famille », touche « Inviter l’autre parent » et entre son adresse e-mail. Il reçoit un e-mail, touche « Je suis parent », entre son adresse et tape le code reçu. Il arrive directement dans <b>votre</b> espace : mêmes enfants, même suivi, mêmes contrôles. Chacun choisit ses propres e-mails.'],
+  ['Inviter l’autre parent ou faire connaître l’appli : quelle différence ?', '<b>Inviter l’autre parent</b> : il rejoint votre famille et voit vos enfants. <b>Faire connaître l’appli</b> : un autre parent crée son propre espace, pour ses propres enfants ; il ne voit rien des vôtres, et vous ne voyez rien des siens.'],
   ['Les contrôles valent-ils pour tous mes enfants ?', 'Non : chaque contrôle et chaque erreur de copie est rattaché à l’enfant choisi en haut de l’écran. Change d’enfant avant de saisir.'],
 ];
 function helpCard() {
@@ -2047,7 +2049,7 @@ function accessCard(st) {
       <input class="field" data-pinin="${st.id}" maxlength="4" inputmode="numeric" placeholder="Nouveau code" autocomplete="off">
       <button class="btn ghost" data-pinset="${st.id}">Enregistrer le code</button>
       <button class="btn ghost" data-renew="${st.id}" data-name="${esc(name)}">🔄 Créer un nouveau lien (l’ancien ne marchera plus)</button>
-      <button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}" data-n="${(st.totals || {}).n || 0}" data-last="${(st.totals || {}).last || ''}" data-ndev="${dev.length}">Supprimer le profil de ${esc(name)} et ses données</button>
+      ${FAM.owner === false ? '' : `<button class="link danger" data-cdel="${st.id}" data-name="${esc(name)}" data-n="${(st.totals || {}).n || 0}" data-last="${(st.totals || {}).last || ''}" data-ndev="${dev.length}">Supprimer le profil de ${esc(name)} et ses données</button>`}
     </div></details>
   </div>`;
 }
@@ -2075,13 +2077,17 @@ function tabReglages(st) {
     <label class="ck"><input type="checkbox" id="fweek" ${FAM.weekly ? 'checked' : ''}> Bilan de la semaine le dimanche soir</label>
   </div>
   ${studs.length ? `<details class="card stack"><summary><b>➕ Ajouter un autre enfant</b></summary>${addChildForm(false)}</details>` : ''}
+  ${parentsCard()}
   <div class="card stack">
-    <h2>📣 Faire connaître l’appli à d’autres parents</h2>
-    <p class="small muted" style="margin:0">Envoie le lien par WhatsApp, SMS ou e-mail. L’autre parent touche « Je suis parent » et crée son espace avec son adresse e-mail. C’est gratuit, sans code d’invitation.</p>
-    <button class="btn" id="invadd">Partager l’appli</button>
+    <h2>📣 Faire connaître l’appli à une autre famille</h2>
+    <p class="small muted" style="margin:0">Pour un ami ou un collègue qui veut faire réviser <b>ses propres enfants</b>. Il crée son espace à lui avec son adresse e-mail : il ne voit pas tes enfants, et tu ne vois pas les siens. C’est gratuit.</p>
+    <button class="btn ghost" id="invadd">Envoyer l’appli à une autre famille</button>
   </div>
-  ${FAM.admin ? '' : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
-    <p class="small muted" style="margin:0">Supprimer ton compte efface définitivement ton espace, les profils de tes enfants et toutes leurs réponses.</p>
+  ${FAM.owner === false ? `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
+    <p class="small muted" style="margin:0">Quitter l’espace famille te retire l’accès au suivi. Les enfants, leurs progrès et l’accès de ${esc(ownerMail())} ne changent pas.</p>
+    <button class="btn ghost danger" id="pquit">Quitter l’espace famille</button></div></details>`
+  : FAM.admin ? '' : `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">
+    <p class="small muted" style="margin:0">Supprimer ton compte efface définitivement l’espace famille, les profils de tes enfants, toutes leurs réponses et l’accès des autres parents invités.</p>
     <button class="btn ghost danger" id="fdel">Supprimer mon compte</button></div></details>`}
   ${helpCard()}
   <div class="center stack" style="gap:6px">
@@ -2089,6 +2095,25 @@ function tabReglages(st) {
     <button class="link" id="out">Me déconnecter de cet appareil</button>
   </div>
   ${legal()}`;
+}
+const ownerMail = () => ((FAM.parents || []).find((p) => p.owner) || {}).email || 'l’autre parent';
+function parentsCard() {
+  const ps = FAM.parents || [], kids = (DASH.students || []).map((x) => childName(x));
+  const who = kids.length ? kids.join(' et ') : 'tes enfants';
+  const rows = ps.map((p) => `<tr><td><b>${esc(p.email)}</b>${p.me ? ' <span class="small muted">(toi)</span>' : ''}<br>
+      <span class="small muted">${p.owner ? 'A créé l’espace' : p.joined ? 'Suit les révisions' : '⏳ Invitation envoyée, pas encore connecté'}</span></td>
+      <td class="tact">${!p.owner && !p.me && FAM.owner ? `<button class="link danger" data-prm="${p.id}" data-mail="${esc(p.email)}">Retirer</button>` : ''}
+      ${!p.owner && !p.joined && !p.me ? `<button class="link" data-presend="${esc(p.email)}">Renvoyer</button>` : ''}</td></tr>`).join('');
+  const room = ps.length < 4;
+  return `<div class="card stack" id="parents">
+    <h2>👨‍👩‍👧 Parents de la famille</h2>
+    <p class="small muted" style="margin:0">Pour que l’autre parent suive <b>${esc(who)}</b> avec toi : il voit le même suivi, les mêmes contrôles, et choisit ses propres e-mails.</p>
+    ${rows ? `<table>${rows}</table>` : ''}
+    ${room ? `<input class="field" id="pmail" type="email" inputmode="email" autocomplete="off" placeholder="Adresse e-mail de l’autre parent">
+    <button class="btn" id="pinvite">Inviter l’autre parent</button>
+    <p class="small muted" style="margin:0">Il reçoit un e-mail : il touche « Je suis parent », entre son adresse puis le code reçu. Pas de mot de passe.</p>` : '<p class="small muted" style="margin:0">4 parents maximum par famille.</p>'}
+    ${FAM.owner === false ? '<p class="small muted" style="margin:0">Seul le parent qui a créé l’espace peut supprimer un enfant ou retirer un parent.</p>' : ''}
+  </div>`;
 }
 const childUrl = (sec) => `${location.origin}${location.pathname}#j=${sec}`;
 const fmtDay = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -2099,7 +2124,7 @@ async function shareText(title, text, url) {
   catch (e) { ask({ title: 'Copie ce message', text: 'Puis colle-le dans WhatsApp ou un SMS.', copy: full, ok: 'Copier', cancel: 'Fermer' }); }
 }
 function inviteShare(code) {
-  shareText(APP_NAME, `Je t’invite à essayer ${APP_NAME}, une appli pour aider nos enfants à réviser la physique-chimie de 3e. Touche « Je suis parent », entre ton adresse e-mail et tape le code que tu reçois par e-mail.`, `${location.origin}${location.pathname}`);
+  shareText(APP_NAME, `Je te conseille ${APP_NAME}, une appli gratuite pour aider nos enfants à réviser la physique-chimie de 3e. Touche « Je suis parent », entre ton adresse e-mail et tape le code reçu : tu crées ton propre espace pour tes enfants.`, `${location.origin}${location.pathname}`);
 }
 function bindParent(st) {
   const $ = (id) => document.getElementById(id);
@@ -2190,6 +2215,32 @@ function bindParent(st) {
     inviteShare();
   };
   $app.querySelectorAll('[data-inv]').forEach((b) => b.onclick = () => inviteShare(b.dataset.inv));
+  const coInvite = async (mail, resend) => {
+    const PE = { email: 'Vérifie l’adresse e-mail.', self: 'C’est ta propre adresse 🙂', already: 'Ce parent fait déjà partie de la famille.',
+      taken: 'Cette adresse a déjà son propre espace dans l’appli. Pour la rejoindre, elle doit d’abord supprimer cet espace (Réglages › Mon compte), ou utilise une autre adresse.',
+      max: '4 parents maximum par famille.', wait: 'Trop d’invitations d’un coup : réessaie dans une heure.', auth: 'Reconnecte-toi.' };
+    try {
+      const r = await mailFn({ action: 'coparent', token, email: mail });
+      if (r.error) { if (r.error === 'taken') ask({ title: 'Adresse déjà utilisée', text: PE.taken, ok: 'Compris', cancel: false }); else toast(PE[r.error] || 'Impossible pour l’instant.'); return; }
+      await ask({ title: resend ? 'Invitation renvoyée ✓' : 'Invitation envoyée ✓', text: `${esc(r.email)} va recevoir un e-mail. Il lui suffira de toucher « Je suis parent », d’entrer cette adresse et de taper le code reçu.<br><br>Pense à lui dire de regarder dans ses spams s’il ne le voit pas.`, ok: 'OK', cancel: false });
+      reload();
+    } catch (e) { toast('Pas de connexion internet.'); }
+  };
+  if ($('pinvite')) $('pinvite').onclick = () => {
+    const v = $('pmail').value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return toast('Écris l’adresse e-mail de l’autre parent.');
+    coInvite(v, false);
+  };
+  $app.querySelectorAll('[data-presend]').forEach((b) => b.onclick = () => coInvite(b.dataset.presend, true));
+  $app.querySelectorAll('[data-prm]').forEach((b) => b.onclick = async () => {
+    if (!await ask({ title: `Retirer ${esc(b.dataset.mail)} ?`, text: 'Ce parent ne pourra plus voir le suivi. Les enfants et leurs progrès ne changent pas. Tu pourras l’inviter à nouveau.', ok: 'Retirer', danger: true })) return;
+    const r = await call('rv_parent_remove', { p_parent: b.dataset.prm }, 'Parent retiré'); if (r) reload();
+  });
+  if ($('pquit')) $('pquit').onclick = async () => {
+    if (!await ask({ title: 'Quitter l’espace famille ?', text: `Tu ne verras plus le suivi des enfants. ${esc(ownerMail())} pourra t’inviter à nouveau.`, ok: 'Quitter', danger: true })) return;
+    const r = await call('rv_parent_remove', { p_parent: FAM.me }, null);
+    if (r && r.ok) { toast('Tu as quitté l’espace famille.'); DASH = null; logout(); }
+  };
   if ($('fdel')) $('fdel').onclick = async () => {
     const v = await ask({ title: 'Supprimer ton compte ?', text: `Tout sera effacé définitivement. Pour confirmer, tape ton adresse e-mail (${esc(FAM.email)}).`, input: 'Ton adresse e-mail', type: 'email', ok: 'Supprimer mon compte', danger: true });
     if (v == null) return;

@@ -119,11 +119,36 @@ Deno.serve(async (req) => {
     if (body.action === 'session') {
       const r = await rpc('rv_notify_session', { p_token: String(body.token || '') });
       if (!r.send) return json({ ok: true, sent: false });
-      await send(r.to, `${r.child} révise en ce moment`,
-        layout(`${esc(r.child)} a commencé une séance`, `<p><b>${esc(r.child)}</b> a ouvert l’appli à <b>${hhmm()}</b> pour réviser.</p><p>Tu retrouveras le détail de sa séance dans ton tableau de bord.</p>`,
-          { href: APP_URL, label: 'Voir le tableau de bord' }),
-        `${r.child} a commencé une séance à ${hhmm()}. ${APP_URL}`, 'session');
-      return json({ ok: true, sent: true });
+      const dests: string[] = Array.isArray(r.to) ? r.to : [r.to];
+      let n = 0;
+      for (const to of dests) {
+        try {
+          await send(to, `${r.child} révise en ce moment`,
+            layout(`${esc(r.child)} a commencé une séance`, `<p><b>${esc(r.child)}</b> a ouvert l’appli à <b>${hhmm()}</b> pour réviser.</p><p>Tu retrouveras le détail de sa séance dans ton tableau de bord.</p>`,
+              { href: APP_URL, label: 'Voir le tableau de bord' }),
+            `${r.child} a commencé une séance à ${hhmm()}. ${APP_URL}`, 'session');
+          n++;
+        } catch (e) { console.error(e); }
+      }
+      return json({ ok: true, sent: n > 0 });
+    }
+
+    if (body.action === 'coparent') {
+      // Invitation de l'autre parent de la même famille (mêmes enfants, même suivi).
+      const r = await rpc('rv_parent_invite', { p_token: String(body.token || ''), p_email: String(body.email || '') });
+      if (r.error) return json({ error: r.error });
+      const kids = r.kids ? esc(r.kids) : 'vos enfants';
+      await send(r.email, `${r.from} t’invite à suivre les révisions de ${r.kids || 'vos enfants'}`,
+        layout(`Suis les révisions de ${kids}`,
+          `<p><b>${esc(r.from)}</b> t’a ajouté(e) comme parent dans ${APP_NAME}. Tu verras le même suivi : séances, réussite, erreurs à travailler et dates de contrôle de <b>${kids}</b>.</p>
+           <p style="margin:16px 0 6px"><b>Pour entrer, c’est simple :</b></p>
+           <ol style="margin:0 0 10px;padding-left:20px"><li>Touche le bouton ci-dessous puis « Je suis parent ».</li>
+           <li>Entre cette adresse : <b>${esc(r.email)}</b></li>
+           <li>Tape le code à 6 chiffres que tu recevras par e-mail.</li></ol>
+           <p style="color:#77738f;font-size:13px">Pas besoin de mot de passe ni de créer de compte. Si tu ne connais pas ${esc(r.from)}, ignore cet e-mail.</p>`,
+          { href: APP_URL, label: 'Ouvrir l’espace parent' }),
+        `${r.from} t'invite à suivre les révisions de ${r.kids || 'vos enfants'} dans ${APP_NAME}. Ouvre ${APP_URL}, touche « Je suis parent », entre ${r.email} et tape le code reçu par e-mail.`, 'coparent', r.from);
+      return json({ ok: true, email: r.email });
     }
 
     if (body.action === 'question') {

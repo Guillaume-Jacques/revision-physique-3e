@@ -58,12 +58,13 @@
   /* ---------- Élève : carte sur l'accueil ---------- */
   let TM = null;
   async function loadTeams() {
-    if (PREVIEW || !token || role !== 'student') return null;
+    if (PREVIEW) { TM = (window.RV_PV || {}).team || null; return TM; }
+    if (!token || role !== 'student') return null;
     try { const r = await rpc('rv_team_mine', { p_token: token }); if (!r.error) { TM = r; LS.set(kTeam(), r); } } catch (e) {}
     return TM;
   }
   function homeCardHtml() {
-    const t = TM || LS.get(kTeam(), null), pend = LS.get(PEND, '');
+    const t = PREVIEW ? (window.RV_PV || {}).team : TM || LS.get(kTeam(), null), pend = PREVIEW ? '' : LS.get(PEND, '');
     if (pend) return `<button class="card stack tcard" id="tgo" style="border:2px solid var(--accent)"><div class="tline"><span class="tic">🏆</span><div class="grow"><b>Invitation dans une équipe</b><br><span class="small muted">Code ${esc(pend)} • touche pour la rejoindre</span></div><span>›</span></div></button>`;
     if (!t) return '';
     const teams = t.teams || [];
@@ -72,7 +73,7 @@
     return `<button class="card stack tcard" id="tgo"><div class="tline"><span class="tic">🏆</span><div class="grow"><b>${esc(tm.name)}</b><br><span class="small muted">${b.length > 1 ? `Tu es <b>${rankTxt(i, GEN())}</b> sur ${b.length}` : 'Invite tes amis pour lancer le classement'} • ${me.pts} pts cette semaine${teams.length > 1 ? ` • +${teams.length - 1} équipe${teams.length > 2 ? 's' : ''}` : ''}</span></div><span>›</span></div></button>`;
   }
   function placeHomeCard() {
-    if (PREVIEW || role !== 'student') return;
+    if (!PREVIEW && role !== 'student') return;
     const old = document.getElementById('tgo'); if (old) old.remove();
     const html = homeCardHtml(); if (!html) return;
     const mgo = document.getElementById('mgo'), anchor = mgo && mgo.closest('.card');
@@ -84,6 +85,7 @@
   screenHome = function () {
     baseHome.apply(this, arguments);
     placeHomeCard();
+    if (PREVIEW) setTimeout(() => { if (document.getElementById('mgo')) placeHomeCard(); }, 0);
     if (!PREVIEW && role === 'student') loadTeams().then(() => { if (document.getElementById('mgo')) placeHomeCard(); });
   };
 
@@ -97,7 +99,7 @@
   async function screenTeams() {
     stopTimer();
     const draw = () => {
-      const t = TM || LS.get(kTeam(), { allowed: false, teams: [] }), teams = t.teams || [], pend = LS.get(PEND, '');
+      const t = (PREVIEW ? (window.RV_PV || {}).team : TM || LS.get(kTeam(), null)) || { allowed: false, teams: [] }, teams = t.teams || [], pend = PREVIEW ? '' : LS.get(PEND, '');
       render(`<div class="row between" style="margin:4px 4px 14px"><button class="link" id="tback">← Accueil</button><b>🏆 Mes équipes</b><span style="width:60px"></span></div>
         ${pend ? `<div class="card stack" style="border:2px solid var(--accent)"><h3>Rejoindre l’équipe ${esc(pend)} ?</h3>
           ${t.allowed ? '<button class="btn" id="tpj">Rejoindre</button>' : `<p class="small" style="margin:0">${ERR.off} Montre-lui ce code : il pourra aussi t’inscrire lui-même.</p>`}
@@ -123,6 +125,7 @@
           <p class="muted" style="margin:0">Les autres voient seulement ton prénom, l’initiale de ton nom et tes points.</p></div></details>`);
       const on = (id, f) => { const el = document.getElementById(id); if (el) el.onclick = f; };
       on('tback', () => route());
+      if (PREVIEW) { const no = () => toast('Aperçu : seul ton enfant peut le faire depuis son appli.'); ['tpj', 'tnew', 'tjoin'].forEach((id) => on(id, no)); $app.querySelectorAll('[data-tinv],[data-tleave]').forEach((b) => b.onclick = no); return; }
       on('tpx', () => { LS.del(PEND); draw(); });
       on('tpj', () => join(pend));
       on('tnew', create);

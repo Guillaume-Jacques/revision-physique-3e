@@ -9,7 +9,7 @@
   const call = (body) => fetch(FN, { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token }, body)) }).then((r) => r.json());
   const onId = (id, f) => { const el = document.getElementById(id); if (el) el.onclick = f; };
   const kTok = (k) => k + '_' + (token || '').slice(0, 8);
-  const isKid = () => role === 'student' || role === 'test';
+  const isKid = () => role === 'student' || role === 'test' || PREVIEW;
   const skillById = (id) => SKILLS.find((k) => k.id === id);
   const canTrain = (id) => !!(id && skillById(id) && typeof GENERATORS !== 'undefined' && GENERATORS[id]);
   const fmtNote = (c) => c.note != null ? `${fr(c.note, 2)}/${fr(c.max || c.note_max || 20, 2)}` : '';
@@ -49,6 +49,16 @@
     #cpView img { max-width: 100%; max-height: 100%; object-fit: contain; }
     #cpView button { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px; background: #fff; color: #000; border-radius: 99px; padding: 8px 14px; font-weight: 800; }
   </style>`);
+
+
+  /* Aperçu parent (« Voir son appli ») : tout s'affiche comme chez l'enfant, mais rien n'est envoyé */
+  const PV_MSG = 'Aperçu : cette action se fait depuis l’appli de ton enfant (ou depuis ton onglet Contrôles).';
+  document.addEventListener('click', (e) => {
+    if (!PREVIEW) return;
+    const t = e.target.closest && e.target.closest('#kcNew,#kxAdd,[data-off],#cpGo,#cpEdit,#cpDel,#cpAdd,[data-rm],label[for="cpCam"],label[for="cpLib"]');
+    if (!t) return;
+    e.preventDefault(); e.stopPropagation(); toast(PV_MSG);
+  }, true);
 
   /* ---------- Données ---------- */
   let COPIES = null, COPIES_AT = 0, POLL = null;
@@ -142,7 +152,7 @@
         ${e.conseil ? `<p class="cs">💡 ${esc(e.conseil)}</p>` : ''}
         ${e.incertain ? '<p class="small muted">⚠️ Passage difficile à lire sur la photo : à vérifier.</p>' : ''}
         ${sk ? `<p class="small muted" style="margin-bottom:0">${sk.icon} ${esc(sk.name)}</p>` : ''}
-        ${mode === 'kid' && canTrain(e.competence) && !PREVIEW ? `<button class="btn ghost" data-train="${e.competence}" style="margin-top:8px">🎯 M’entraîner sur ce point</button>` : ''}
+        ${mode === 'kid' && canTrain(e.competence) ? `<button class="btn ghost" data-train="${e.competence}" style="margin-top:8px">🎯 M’entraîner sur ce point</button>` : ''}
         ${mode === 'check' ? `<label class="ck"><input type="checkbox" data-keep="${i}" ${canTrain(e.competence) ? 'checked' : 'disabled'}> ${canTrain(e.competence) ? 'Envoyer en révision' : '<span class="small muted">Pas encore d’exercices dans l’appli pour ce point</span>'}</label>` : ''}`}
     </div>`;
   }
@@ -165,7 +175,7 @@
     if (!c) { toast('Copie introuvable.'); return back(); }
     const parent = role === 'parent' && !PREVIEW, kid = !parent;
     const who = parent ? childName(curChild()) : 'toi';
-    const editable = !['validee', 'analyse'].includes(c.status) && !(kid && c.status === 'a_valider') && !PREVIEW;
+    const editable = !['validee', 'analyse'].includes(c.status) && !(kid && c.status === 'a_valider');
     const a = c.analysis || {};
     let body = '';
     if (c.status === 'analyse') body = `<div class="card center stack"><div class="spinner"></div><b>L’application relit la copie…</b><p class="small muted" style="margin:0">Compte 1 à 2 minutes. Tu peux quitter cet écran : ${parent ? 'tu recevras un e-mail quand ce sera prêt' : 'ton parent sera prévenu'}.</p></div>`;
@@ -178,14 +188,14 @@
         ${(a.tries || 0) < 4 && editable ? '<button class="btn" id="cpGo">🔁 Relancer la correction</button>' : ''}</div>`;
     const shoot = editable && c.n < 8 ? `<label class="btn" for="cpCam">📷 Prendre une photo</label><label class="btn ghost" for="cpLib">🖼️ Choisir dans mes photos</label>` : '';
     if (c.status === 'photos' || !c.status) body = `<div class="card stack"><p style="margin:0">${c.n ? `<b>${c.n} page${c.n > 1 ? 's' : ''} ajoutée${c.n > 1 ? 's' : ''}.</b> S’il y a d’autres pages, ajoute-les, puis lance la correction.` : '<b>Dernière étape : les photos.</b> Prends chaque page de la copie corrigée, bien à plat, près d’une fenêtre.'}</p>
-        ${PREVIEW ? '<p class="small muted" style="margin:0">Aperçu : les photos s’ajoutent depuis l’appli de l’enfant ou depuis l’espace parent.</p>' : shoot}
+        ${shoot}
         ${c.n && editable ? `<button class="btn ${c.n ? '' : 'ghost'}" id="cpGo" style="margin-top:6px">${kid ? '📨 Envoyer pour correction' : '✨ Lancer la correction'}</button>` : ''}</div>`;
     else if (c.status === 'erreur' && shoot) body = body.replace('</div>', `${shoot}</div>`);
     render(`<div class="${kid ? 'stab' : 'pz'}">
       <button class="link" id="cpBack">← Retour</button>
       <div class="ptitle"><h1>${esc(c.label || 'Contrôle')}</h1><span class="small muted">${dayTxt(c)}</span></div>
       <div class="card stack">
-        <div class="row between"><b>${c.note != null ? `Note : ${fmtNote(c)}` : 'Note pas encore saisie'}</b>${!PREVIEW && (parent || c.status !== 'validee') ? '<button class="link" id="cpEdit">Modifier</button>' : ''}</div>
+        <div class="row between"><b>${c.note != null ? `Note : ${fmtNote(c)}` : 'Note pas encore saisie'}</b>${parent || c.status !== 'validee' ? '<button class="link" id="cpEdit">Modifier</button>' : ''}</div>
         ${c.n ? `<div class="thumbs" id="cpThumbs">` : ''}${Array.from({ length: c.n }, (_, i) => `<div class="th" data-i="${i}"><span class="small muted" style="display:block;padding:8px">…</span></div>`).join('')}
           ${editable && c.n > 0 && c.n < 8 ? '<button class="th add" id="cpAdd"><span style="font-size:1.6em">📷</span>Ajouter</button>' : ''}${c.n ? '</div>' : ''}
       </div>
@@ -277,13 +287,27 @@
   }, true);
   document.addEventListener('change', (e) => { if (e.target && e.target.id === 'ncE') document.getElementById('ncOther').hidden = !!e.target.value; });
 
+
+  /* Ordre fixe des cartes sous la mission du jour (elles arrivent à des moments différents selon le réseau) */
+  const HOME_ORDER = ['pushc', 'tgo', 'duin', 'goalc'];
+  let ordering = false;
+  function orderHomeCards() {
+    const mgo = document.getElementById('mgo'), anchor = mgo && mgo.closest('.card'); if (!anchor) return;
+    const els = HOME_ORDER.map((id) => document.getElementById(id)).filter(Boolean);
+    let ref = anchor, moved = false;
+    els.forEach((el) => { if (ref.nextElementSibling !== el) { ref.after(el); moved = true; } ref = el; });
+    return moved;
+  }
+  new MutationObserver(() => { if (ordering) return; ordering = true; Promise.resolve().then(() => { try { orderHomeCards(); } finally { ordering = false; } }); })
+    .observe($app, { childList: true, subtree: true });
+
   /* ---------- Élève : barre d'onglets ---------- */
   function kidBar(on) {
     return `<nav class="tabbar">${[['home', '🏠', 'Accueil'], ['cours', '📚', 'Mes cours'], ['ctrl', '📅', 'Contrôles']].map(([k, i, l]) => `<button data-ktab="${k}" class="${on === k ? 'on' : ''}" ${on === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}${k === 'ctrl' && kidBadge() ? ' <i class="badge todo" style="font-style:normal">' + kidBadge() + '</i>' : ''}</button>`).join('')}</nav>`;
   }
   function kidBadge() {
     const e = typeof nextExam === 'function' ? nextExam() : null;
-    const fresh = (COPIES || []).filter((c) => c.status === 'validee' && !(S && (S.copiesSeen || []).includes(c.id))).length;
+    const fresh = (PREVIEW ? copiesOf((window.RV_PV || {}).child) : COPIES || []).filter((c) => c.status === 'validee' && !(S && (S.copiesSeen || []).includes(c.id))).length;
     return fresh || (e && e.days <= 7 ? '!' : '');
   }
   function bindKidBar() {
@@ -305,11 +329,11 @@
     const k = skillById(id); if (!k) return '';
     const m = (S.mastery || {})[id] || 0;
     return `<div class="revrow"><span style="font-size:1.4em">${k.icon}</span><div class="grow"><b>${esc(k.name)}</b>${why ? `<br><span class="small muted">${esc(why)}</span>` : ''}<div class="bar"><i style="width:${m}%"></i></div></div>
-      ${canTrain(id) && !PREVIEW ? `<button class="btn ghost" data-train="${id}">S’entraîner</button>` : medalHtml(m)}</div>`;
+      ${canTrain(id) ? `<button class="btn ghost" data-train="${id}">S’entraîner</button>` : medalHtml(m)}</div>`;
   }
   async function screenKidCtrl() {
     stopPoll();
-    const sid = PREVIEW ? (curChildSafe() || {}).id : null;
+    const sid = PREVIEW ? (window.RV_PV || {}).child || (curChildSafe() || {}).id : null;
     if (!COPIES) render(`<div class="stab"><p class="center muted" style="margin-top:40px">Chargement…</p></div>${kidBar('ctrl')}`);
     await loadCopies();
     const list = PREVIEW ? copiesOf(sid) : copiesOf();
@@ -329,9 +353,9 @@
       <div class="card stack">
         <h2>📅 À venir</h2>
         ${ex.length ? ex.map((e) => `<div class="row between" style="gap:8px"><div><b>${fmtD(e.day)}</b> • ${esc(e.label || 'Contrôle')}<br><span class="small muted">${examWhen(e)}</span></div>
-          ${!PREVIEW && e.student ? `<button class="more" data-off="${e.id}" aria-label="Retirer">⋯</button>` : ''}</div>`).join('')
+          ${e.student ? `<button class="more" data-off="${e.id}" aria-label="Retirer">⋯</button>` : ''}</div>`).join('')
           : `<p class="small muted" style="margin:0">Aucun contrôle prévu. Dès que ton prof en annonce un, ajoute-le : l’appli te prépare un programme spécial les 7 jours d’avant.</p>`}
-        ${PREVIEW ? '' : `<details><summary><b>+ Ajouter un contrôle annoncé</b></summary><div class="stack" style="margin-top:10px">
+        ${`<details><summary><b>+ Ajouter un contrôle annoncé</b></summary><div class="stack" style="margin-top:10px">
           <label class="small" for="kxD"><b>Date</b></label><input class="field" type="date" id="kxD" min="${todayStr()}">
           <label class="small" for="kxS"><b>Matière</b></label><select class="field" id="kxS"><option value="physique">⚡ Physique</option><option value="chimie">⚗️ Chimie</option><option value="mix">Les deux</option></select>
           <label class="small" for="kxL"><b>Sur quoi ?</b> <span class="muted">(ce que le prof a dit)</span></label><input class="field" id="kxL" maxlength="120" placeholder="Ex. : la vitesse, l’atome…">
@@ -339,13 +363,13 @@
       </div>
       ${next ? `<div class="card stack"><h2>📝 À réviser pour le ${fmtD(next.day)}</h2><p class="small muted" style="margin:0">Du moins maîtrisé au plus maîtrisé.${next.days <= 2 ? ' C’est le moment du <b>contrôle blanc</b> !' : ''}</p>
         ${nextSk.slice(0, 6).map((k) => revRow(k)).join('')}
-        ${next.days <= 7 && !PREVIEW ? '<button class="btn" id="kxBoss">👾 Faire un contrôle blanc</button>' : ''}</div>` : ''}
+        ${next.days <= 7 ? '<button class="btn" id="kxBoss">👾 Faire un contrôle blanc</button>' : ''}</div>` : ''}
       ${toRev.length ? `<div class="card stack"><h2>🎯 À revoir avant le prochain contrôle</h2><p class="small muted" style="margin:0">Ce qui t’a posé problème sur tes copies. Ça disparaît quand tu as la médaille d’argent.</p>${toRev.map((k) => revRow(k, fromCopies[k])).join('')}</div>` : ''}
       <div class="card stack">
         <h2>📸 Mes copies</h2>
         <p class="small muted" style="margin:0">Ton prof t’a rendu une copie ? Prends-la en photo : l’appli t’explique tes erreurs pas à pas et te fait t’entraîner dessus.</p>
         ${list.map(copyRow).join('')}
-        ${PREVIEW ? '' : '<button class="btn" id="kcNew">📷 Ajouter une copie corrigée</button>'}
+        <button class="btn" id="kcNew">📷 Ajouter une copie corrigée</button>
         ${notesChart(list)}
       </div>
     </div>${kidBar('ctrl')}`);

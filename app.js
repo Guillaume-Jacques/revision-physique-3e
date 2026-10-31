@@ -355,7 +355,7 @@ function render(html) {
   window.scrollTo(0, 0);
   const pv = document.getElementById('pvexit'); if (pv) pv.onclick = exitPreview;
 }
-function exitPreview() { stopTimer(); PREVIEW = false; PREVIEW_G = null; RUN = null; S = null; PLAN = []; screenParent(true); }
+function exitPreview() { stopTimer(); window.RV_PV = null; document.body.classList.remove('large'); PREVIEW = false; PREVIEW_G = null; RUN = null; S = null; PLAN = []; screenParent(true); }
 
 /* ---------- Accueil : élève ou parent ---------- */
 function brandHead(sub) {
@@ -2259,8 +2259,15 @@ function bindParent(st) {
     S.mastery = Object.assign(defaultState().mastery, S.mastery);
     if (!S.pseudo) S.pseudo = c.label || 'Élève';
     PLAN = childPlan(c); PREVIEW_G = c.gender || null;
-    PREVIEW = true; document.body.classList.toggle('large', false);
+    PREVIEW = true; document.body.classList.toggle('large', !!S.large);
+    window.RV_PV = { child: c.id };
     route();
+    // ce que voit l'enfant côté serveur : équipes, défis, rappels → on redessine son accueil
+    rpc('rv_preview_child', { p_token: token, p_child: c.id }).then((r) => {
+      if (!PREVIEW || !r || r.error) return;
+      window.RV_PV = Object.assign({ child: c.id }, r);
+      if (!RUN && document.getElementById('mgo')) screenHome();
+    }).catch(() => {});
   });
   // Contrôles et copies (rattachés à l'enfant choisi)
   const add = async (args) => {

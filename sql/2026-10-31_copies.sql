@@ -172,3 +172,21 @@ begin
 end $$;
 revoke all on function public.rv_copies_purge_tick() from public, anon, authenticated;
 select cron.schedule('rv-copies-purge', '5 3 * * *', 'select public.rv_copies_purge_tick()');
+
+-- Aperçu « Voir son appli » : le parent récupère ce que voit l'enfant (équipes, défis, rappels)
+create or replace function public.rv_preview_child(p_token uuid, p_child uuid)
+returns json language plpgsql security definer set search_path to 'public' as $$
+declare v_prof rv_profiles; v_tok uuid; v_kid rv_profiles;
+begin
+  v_prof := rv_profile_from_token(p_token);
+  if v_prof.id is null or v_prof.role <> 'parent' then return json_build_object('error','auth'); end if;
+  select * into v_kid from rv_profiles where id = p_child and family_id = v_prof.family_id and role = 'student';
+  if v_kid.id is null then return json_build_object('error','child'); end if;
+  select token into v_tok from rv_sessions where profile_id = v_kid.id and expires_at > now() order by last_seen desc nulls last, created_at desc limit 1;
+  return json_build_object(
+    'team', case when v_tok is null then json_build_object('allowed', (select coalesce(teams_ok,false) from rv_families where id = v_prof.family_id), 'teams', '[]'::json) else rv_team_mine(v_tok) end,
+    'duels', case when v_tok is null then json_build_object('allowed', false, 'mates', '[]'::json, 'duels', '[]'::json) else rv_duel_mine(v_tok) end,
+    'push', json_build_object('push_ok', v_kid.push_ok,
+       'active', exists(select 1 from rv_push x join rv_sessions s on s.token = x.token where x.profile_id = v_kid.id and x.status = 'ok' and s.expires_at > now())));
+end $$;
+grant execute on function public.rv_preview_child(uuid, uuid) to anon;

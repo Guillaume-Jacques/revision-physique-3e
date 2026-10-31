@@ -212,6 +212,7 @@
   }
   const duelItems = (seed, skills) => seeded(seed, () => skills.map((k) => generate(k, 2)));
   async function loadDuels() {
+    if (PREVIEW) { DU = (window.RV_PV || {}).duels || null; return DU; }
     if (!isStudent() || role !== 'student') return null;
     try { const r = await rpc('rv_duel_mine', { p_token: token }); if (!r.error) { DU = r; LS.set(kTok('rv_duels'), r); } } catch (e) {}
     return DU;
@@ -219,8 +220,8 @@
   const duTxt = (ms) => ms ? `${Math.round(ms / 1000)} s` : '';
   const verdict = (d) => d.my > d.their || (d.my === d.their && (d.my_ms || 0) <= (d.their_ms || 0)) ? (d.my === d.their && d.my_ms === d.their_ms ? 'egal' : 'win') : 'lose';
   function duelHomeHtml() {
-    const d = DU || LS.get(kTok('rv_duels'), null); if (!d || !d.allowed) return '';
-    const seen = LS.get(kTok('rv_duel_seen'), []);
+    const d = PREVIEW ? (window.RV_PV || {}).duels : DU || LS.get(kTok('rv_duels'), null); if (!d || !d.allowed) return '';
+    const seen = PREVIEW ? [] : LS.get(kTok('rv_duel_seen'), []);
     const inbox = (d.duels || []).filter((x) => !x.mine && x.my == null);
     const res = (d.duels || []).filter((x) => x.mine && x.their != null && !seen.includes(x.id));
     if (inbox.length) return `<button class="card stack tcard" id="duin" style="border:2px solid var(--accent)"><div class="tline"><span class="tic">⚔️</span><div class="grow"><b>${esc(inbox[0].other)} te lance un défi !</b><br><span class="small muted">5 questions, sans indice${inbox.length > 1 ? ` • +${inbox.length - 1} autre${inbox.length > 2 ? 's' : ''} défi${inbox.length > 2 ? 's' : ''}` : ''}</span></div><span>›</span></div></button>`;
@@ -231,10 +232,10 @@
   async function screenDuels() {
     stopTimer();
     const draw = () => {
-      const d = DU || LS.get(kTok('rv_duels'), { allowed: false, mates: [], duels: [] });
-      const seen = LS.get(kTok('rv_duel_seen'), []);
+      const d = (PREVIEW ? (window.RV_PV || {}).duels : DU || LS.get(kTok('rv_duels'), null)) || { allowed: false, mates: [], duels: [] };
+      const seen = PREVIEW ? [] : LS.get(kTok('rv_duel_seen'), []);
       const fin = (d.duels || []).filter((x) => x.my != null && x.their != null);
-      LS.set(kTok('rv_duel_seen'), [...new Set(seen.concat(fin.map((x) => x.id)))].slice(-60));
+      if (!PREVIEW) LS.set(kTok('rv_duel_seen'), [...new Set(seen.concat(fin.map((x) => x.id)))].slice(-60));
       const inbox = (d.duels || []).filter((x) => !x.mine && x.my == null), wait = (d.duels || []).filter((x) => x.mine && x.their == null);
       render(`<div class="row between" style="margin:4px 4px 14px"><button class="link" id="dback">← Accueil</button><b>⚔️ Défis</b><span style="width:60px"></span></div>
         ${!d.allowed ? `<div class="card stack"><h2>Défie tes amis</h2><p style="margin:0">Les défis se lancent entre membres d’une même équipe. Demande à ton parent d’autoriser les équipes (Réglages › Équipes entre amis).</p></div>` : ''}
@@ -245,6 +246,7 @@
         ${wait.length ? `<div class="card stack"><h3 style="margin:0">En attente</h3>${wait.map((x) => `<div class="row between small"><span>${esc(x.other)}</span><span>toi : <b>${x.my}/5</b> • son tour</span></div>`).join('')}</div>` : ''}
         ${fin.length ? `<div class="card stack"><h3 style="margin:0">Derniers résultats</h3>${fin.slice(0, 10).map((x) => { const v = verdict(x); return `<div class="row between small"><span>${v === 'win' ? '🏆' : v === 'egal' ? '🤝' : '•'} ${esc(x.other)}</span><span><b>${x.my} – ${x.their}</b> <span class="muted">(${duTxt(x.my_ms)} / ${duTxt(x.their_ms)})</span></span></div>`; }).join('')}</div>` : ''}`);
       onId('dback', () => route());
+      if (PREVIEW) { $app.querySelectorAll('[data-mate],[data-play]').forEach((b) => b.onclick = () => toast('Aperçu : seul ton enfant peut lancer ou jouer un défi.')); return; }
       $app.querySelectorAll('[data-mate]').forEach((b) => b.onclick = () => startDuel({ to: b.dataset.mate, name: b.dataset.n }));
       $app.querySelectorAll('[data-play]').forEach((b) => b.onclick = () => { const x = (d.duels || []).find((y) => y.id === b.dataset.play); if (x) startDuel({ duel: x }); });
     };
@@ -328,11 +330,15 @@
     return `<div class="card stack" id="pushc"><div class="row"><span class="appic">🔔</span><div class="grow"><b>Active tes rappels</b><br><span class="small muted">Un petit rappel vers 17 h, seulement les jours où des exercices t’attendent et que tu n’as pas encore révisé.</span></div></div>
       <button class="btn" id="pushon">Activer les rappels</button><button class="link" id="pushno" style="padding:0">Plus tard</button></div>`;
   }
+  pushCardHtml.preview = () => `<div class="card stack" id="pushc"><div class="row"><span class="appic">🔔</span><div class="grow"><b>Active tes rappels</b><br><span class="small muted">Un petit rappel vers 17 h, seulement les jours où des exercices t’attendent et que tu n’as pas encore révisé.</span></div></div>
+      <button class="btn" id="pushon">Activer les rappels</button><button class="link" id="pushno" style="padding:0">Plus tard</button></div>`;
   function placePushCard() {
     const old = document.getElementById('pushc'); if (old) old.remove();
-    const mgo = document.getElementById('mgo'), anchor = mgo && mgo.closest('.card'); if (!anchor || !isStudent()) return;
-    const h = pushCardHtml(); if (!h) return;
+    const mgo = document.getElementById('mgo'), anchor = mgo && mgo.closest('.card'); if (!anchor || !(isStudent() || PREVIEW)) return;
+    const pv = (window.RV_PV || {}).push;
+    const h = PREVIEW ? (pv && pv.push_ok !== false && !pv.active ? pushCardHtml.preview() : '') : pushCardHtml(); if (!h) return;
     anchor.insertAdjacentHTML('afterend', h);
+    if (PREVIEW) { onId('pushno', () => toast('Aperçu : seul ton enfant peut répondre.')); onId('pushon', () => toast('Aperçu : seul ton enfant peut activer les rappels, sur son téléphone.')); return; }
     onId('pushno', () => { LS.set(kTok('rv_push_later'), todayStr()); placePushCard(); });
     onId('pushon', async () => {
       try {
@@ -353,7 +359,7 @@
     try {
       const acts = $app.querySelector('.acts');
       if (acts) {
-        const d = DU || LS.get(kTok('rv_duels'), null), canDuel = role === 'student' && !PREVIEW && d && d.allowed;
+        const d = PREVIEW ? (window.RV_PV || {}).duels : DU || LS.get(kTok('rv_duels'), null), canDuel = (role === 'student' || PREVIEW) && d && d.allowed;
         acts.insertAdjacentHTML('beforeend', `<button class="act ${canDuel ? '' : 'solo'}" id="sprint"><span class="ic">⚡</span><b>Sprint 60 s</b><span class="small muted">Conversions, formules, 10ⁿ</span></button>`
           + (canDuel ? `<button class="act" id="duelAct"><span class="ic">⚔️</span><b>Défier un ami</b><span class="small muted">Les mêmes 5 questions</span></button>` : ''));
         onId('sprint', screenSprints); onId('duelAct', screenDuels);
@@ -364,6 +370,7 @@
         const du = duelHomeHtml(); if (du) { anchor.insertAdjacentHTML('afterend', du); onId('duin', screenDuels); }
       }
       placePushCard();
+      if (PREVIEW) setTimeout(() => { if (document.getElementById('mgo')) placePushCard(); }, 0);
     } catch (e) {}
     if (!PREVIEW && role === 'student' && (!DU || Date.now() - (DU._at || 0) > 60000)) {
       const prev = JSON.stringify(LS.get(kTok('rv_duels'), null));

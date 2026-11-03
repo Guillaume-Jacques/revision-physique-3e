@@ -45,3 +45,5 @@ end $$;
 
 drop trigger if exists rv_families_notify on rv_families;
 create trigger rv_families_notify after insert on rv_families for each row execute function rv_notify_signup();
+
+insert into rv_config(k, v) values ('apns_key_id', '55NXNU5983') on conflict (k) do update set v = excluded.v;

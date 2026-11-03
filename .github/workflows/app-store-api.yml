@@ -1,0 +1,21 @@
+name: App Store Connect (actions API)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action (prix-gratuit, etat)"
+        required: true
+        default: etat
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      ASC_KEY_ID: MV6J5SXHYM
+      ASC_ISSUER_ID: 248ae3f4-eb94-4fa9-bcab-c84eef488834
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pyjwt cryptography
+      - run: python3 mobile/scripts/asc.py "${{ inputs.action }}"

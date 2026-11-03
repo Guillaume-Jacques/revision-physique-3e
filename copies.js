@@ -303,7 +303,7 @@
 
   /* ---------- Élève : barre d'onglets ---------- */
   function kidBar(on) {
-    return `<nav class="tabbar">${[['home', '🏠', 'Accueil'], ['cours', '📚', 'Mes cours'], ['ctrl', '📅', 'Contrôles']].map(([k, i, l]) => `<button data-ktab="${k}" class="${on === k ? 'on' : ''}" ${on === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}${k === 'ctrl' && kidBadge() ? ' <i class="badge todo" style="font-style:normal">' + kidBadge() + '</i>' : ''}</button>`).join('')}</nav>`;
+    return `<nav class="tabbar">${[['home', '🏠', 'Accueil'], ['cours', '📚', 'Mes cours']].concat(window.screenHisto ? [['histo', '🕘', 'Exercices']] : []).concat([['ctrl', '📅', 'Contrôles']]).map(([k, i, l]) => `<button data-ktab="${k}" class="${on === k ? 'on' : ''}" ${on === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}${k === 'ctrl' && kidBadge() ? ' <i class="badge todo" style="font-style:normal">' + kidBadge() + '</i>' : ''}</button>`).join('')}</nav>`;
   }
   function kidBadge() {
     const e = typeof nextExam === 'function' ? nextExam() : null;
@@ -311,7 +311,7 @@
     return fresh || (e && e.days <= 7 ? '!' : '');
   }
   function bindKidBar() {
-    $app.querySelectorAll('[data-ktab]').forEach((b) => b.onclick = () => { stopPoll(); const k = b.dataset.ktab; if (k === 'home') screenHome(); else if (k === 'cours') screenCours(); else screenKidCtrl(); });
+    $app.querySelectorAll('[data-ktab]').forEach((b) => b.onclick = () => { stopPoll(); const k = b.dataset.ktab; if (k === 'home') screenHome(); else if (k === 'cours') screenCours(); else if (k === 'histo') window.screenHisto(); else screenKidCtrl(); });
   }
   function addBar(on) {
     if ($app.querySelector('.tabbar')) return;
@@ -319,6 +319,7 @@
     bindKidBar();
     document.body.classList.add('has-tabbar');
   }
+  window.rvAddKidBar = addBar;
   const baseHome = screenHome;
   screenHome = function () { stopPoll(); baseHome.apply(this, arguments); try { addBar('home'); } catch (e) {} if (!COPIES && (isKid() || PREVIEW)) loadCopies().then(() => { const b = $app.querySelector('[data-ktab="ctrl"]'); if (b && kidBadge()) { $app.querySelector('.tabbar').outerHTML = kidBar('home'); bindKidBar(); } }); };
   const baseCours = screenCours;

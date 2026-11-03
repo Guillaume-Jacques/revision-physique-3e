@@ -1,7 +1,8 @@
 /* =========================================================
    Bulle d'aide « ? » (en bas à droite, sur tous les écrans)
    Deux onglets : « Parcourir l'aide » (articles filtrables) et
-   « Poser ma question » (réponses suggérées, puis envoi par e-mail).
+   « Poser ma question » : assistant qui répond (fonction rv-aide) et renvoie
+   vers la bonne page ; « Écrire à l'équipe » reste possible (rv-mail, action question).
    Fichier autonome, chargé en dernier.
    ========================================================= */
 (function () {
@@ -19,7 +20,7 @@
         ['Comment écrire 2,67 × 10⁻²⁶ ?', 'Dans le premier champ, tape <b>2,67</b>. Dans le petit champ en haut, tape l’exposant <b>26</b> puis touche <b>±</b> pour le rendre négatif (l’iPhone n’a pas de touche moins). Le bouton « 🧮 Ma calculatrice » montre comment faire le calcul sur ton modèle.'],
         ['En QCM, comment ça marche ?', 'Touche une réponse, puis <b>Valider</b>. Si tu t’es trompé, tu peux en toucher une autre directement.'],
         ['Pourquoi on me demande si je suis sûr ?', 'Après « Valider », tu indiques <b>sûr / j’hésite / au hasard</b>. Sois honnête : une réponse juste « au hasard » ne te fait presque pas progresser, et l’exercice reviendra pour vérifier. Ça permet à l’appli de savoir ce que tu sais vraiment.'],
-        ['Ma réponse est juste mais comptée fausse', 'Vérifie : l’<b>unité</b> attendue (m ou km, s ou h ?), l’<b>arrondi</b> (arrondir trop tôt fausse le résultat) et la <b>virgule</b>. L’appli te dit souvent d’où vient l’écart (facteur 3,6, facteur 60, virgule…). Si tu es sûr qu’il y a une erreur, envoie-la avec « Poser ma question ».'],
+        ['Ma réponse est juste mais comptée fausse', 'Vérifie : l’<b>unité</b> attendue (m ou km, s ou h ?), l’<b>arrondi</b> (arrondir trop tôt fausse le résultat) et la <b>virgule</b>. L’appli te dit souvent d’où vient l’écart (facteur 3,6, facteur 60, virgule…). Si tu es sûr qu’il y a une erreur, signale-la dans « Poser ma question ».'],
         ['Je bloque sur un exercice', 'Touche <b>« 💡 Indice »</b> ou, en rédaction, <b>« Je bloque »</b> : l’aide arrive étape par étape. Tu peux aussi relire la fiche de la compétence. Un exercice raté revient plus tard dans « À revoir » : c’est normal, c’est fait pour ça.'],
       ]],
       ['Progresser', [
@@ -83,6 +84,8 @@
 
   const who = () => (typeof PREVIEW !== 'undefined' && PREVIEW) ? 'eleve' : !token ? 'visiteur' : role === 'parent' ? 'parent' : 'eleve';
   let tab = 'browse', filter = '', draft = '', mail = '', sent = false, openQ = null;
+  let chat = [], busy = false, team = false; // conversation avec l'assistant ; team = formulaire « Écrire à l'équipe »
+  const AIDE_FN = `${CFG.url}/functions/v1/rv-aide`;
 
   const css = document.createElement('style');
   css.textContent = `
@@ -116,7 +119,24 @@
   #aidePanel .asug details.aq:last-child { border-bottom: 0; }
   #aidePanel .aok { text-align: center; padding: 18px 4px; }
   #aidePanel .aok .big { font-size: 40px; }
-  @media (prefers-reduced-motion: reduce) { #aidePanel { animation: none; } }`;
+  #aidePanel .chat { display: flex; flex-direction: column; gap: 10px; }
+  #aidePanel .msg { max-width: 88%; padding: 10px 13px; border-radius: 16px; font-size: .95em; line-height: 1.45; overflow-wrap: anywhere; }
+  #aidePanel .msg.u { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; white-space: pre-wrap; }
+  #aidePanel .msg.a { align-self: flex-start; background: var(--bg); border-bottom-left-radius: 5px; }
+  #aidePanel .msg.a ul { margin: 6px 0; padding-left: 18px; }
+  #aidePanel .alinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #aidePanel .alinks button { background: var(--card); color: var(--accent); border: 1.5px solid var(--accent); border-radius: 999px; padding: 7px 12px; font-weight: 800; font-size: .88em; }
+  #aidePanel .ateam { background: transparent; color: var(--accent); font-weight: 800; font-size: .88em; padding: 6px 0 0; text-decoration: underline; }
+  #aidePanel .dots span { display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%; background: var(--muted); animation: aDot 1s infinite; }
+  #aidePanel .dots span:nth-child(2) { animation-delay: .15s; } #aidePanel .dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes aDot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+  #aidePanel .acomp { display: flex; gap: 8px; align-items: flex-end; padding: 10px 14px calc(12px + env(safe-area-inset-bottom) * 0); border-top: 1px solid var(--line); background: var(--card); }
+  #aidePanel .acomp textarea { min-height: 46px; max-height: 120px; resize: none; padding: 11px 12px; }
+  #aidePanel .acomp .asend { flex: none; width: 46px; height: 46px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 20px; font-weight: 900; }
+  #aidePanel .acomp .asend:disabled { opacity: .45; }
+  #aidePanel .achips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  #aidePanel .achips button { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 8px 12px; font-weight: 700; font-size: .88em; text-align: left; }
+  @media (prefers-reduced-motion: reduce) { #aidePanel { animation: none; } #aidePanel .dots span { animation: none; opacity: .6; } }`;
   document.head.appendChild(css);
 
   const btn = document.createElement('button');
@@ -147,37 +167,132 @@
     }).join('');
     return secs || `<p class="muted" style="margin-top:14px">Rien trouvé pour « ${esc(filter)} ». Essaie un autre mot, ou pose ta question dans l’autre onglet.</p>`;
   }
-  function askHtml() {
+  /* ---------- Formulaire « Écrire à l'équipe » (ancien envoi par e-mail, conservé en secours) ---------- */
+  function teamHtml() {
     const w = who();
-    if (sent) return `<div class="aok"><div class="big">✅</div><h3>Question envoyée</h3><p class="muted">${w === 'eleve' ? 'La réponse arrivera par e-mail à ton parent, en général sous 24 heures.' : 'La réponse arrivera par e-mail, en général sous 24 heures.'}</p><button class="btn ghost" id="aNew">Poser une autre question</button></div>`;
-    return `<p class="small muted" style="margin:0 0 10px">${w === 'eleve' ? 'Une question sur l’appli, un exercice qui te semble faux, une idée ? Écris-la ici.' : 'Une question sur l’appli, un problème, une suggestion ? Écris-la ici.'}</p>
-      <textarea id="aTxt" maxlength="2000" placeholder="${w === 'eleve' ? 'Ex. : comment je fais pour…' : 'Ta question'}">${esc(draft)}</textarea>
-      <div id="aSug"></div>
+    if (sent) return `<div class="aok"><div class="big">✅</div><h3>Question envoyée</h3><p class="muted">${w === 'eleve' ? 'La réponse arrivera par e-mail à ton parent, en général sous 24 heures.' : 'La réponse arrivera par e-mail, en général sous 24 heures.'}</p><button class="btn ghost" id="aBack">Revenir à la conversation</button></div>`;
+    return `<p class="small muted" style="margin:0 0 10px">${w === 'eleve' ? 'Ton message part à l’équipe de l’appli ; la réponse sera envoyée à ton parent par e-mail.' : 'Ton message part à l’équipe de l’appli. Réponse par e-mail, en général sous 24 heures.'}</p>
+      <textarea id="aTxt" maxlength="2000" placeholder="Ton message">${esc(draft)}</textarea>
       ${w === 'visiteur' ? `<input class="amail" id="aMail" type="email" inputmode="email" autocomplete="email" placeholder="Ton adresse e-mail (pour la réponse)" value="${esc(mail)}" style="margin-top:10px">` : ''}
-      <button class="btn" id="aSend" style="width:100%;margin-top:12px">Envoyer ma question</button>
-      <p class="small muted" style="margin:8px 0 0">${w === 'eleve' ? 'La réponse sera envoyée à ton parent par e-mail.' : 'Réponse par e-mail, en général sous 24 heures.'}</p>`;
+      <button class="btn" id="aSend" style="width:100%;margin-top:12px">Envoyer à l’équipe</button>
+      <button class="ateam" id="aBack" style="display:block;margin:10px auto 0">← Revenir à la conversation</button>`;
   }
-  function sugHtml() {
-    const m = match(draft, 3);
-    return m.length ? `<div class="asug"><p>Ces réponses peuvent t’aider</p>${m.map((x) => qa(x.q, x.a)).join('')}</div>` : '';
+
+  /* ---------- Conversation avec l'assistant ---------- */
+  const CHIPS = {
+    eleve: ['Par où je commence ?', 'Comment convertir des km/h en m/s ?', 'Où sont mes cours ?'],
+    parent: ['Comment ajouter mon enfant ?', 'Comment suivre ses progrès ?', 'Comment saisir un contrôle ?'],
+    visiteur: ['À quoi sert cette appli ?', 'Comment créer un compte ?', 'C’est gratuit ?'],
+  };
+  function chatHtml() {
+    const w = who();
+    const hello = w === 'eleve' ? 'Salut ! Pose-moi ta question sur l’appli ou sur une notion du cours, je t’explique et je t’emmène au bon endroit.'
+      : 'Bonjour ! Pose ta question sur l’appli : je réponds tout de suite et je t’emmène à la bonne page si besoin.';
+    const msgs = chat.map((m, i) => m.role === 'user' ? `<div class="msg u">${esc(m.text)}</div>`
+      : `<div class="msg a">${m.html}${m.links && m.links.length ? `<div class="alinks">${m.links.map((l) => `<button data-go="${esc(l.go)}">${esc(l.label)} ›</button>`).join('')}</div>` : ''}${m.human ? `<button class="ateam" data-team="${i}">✉️ Écrire à l’équipe</button>` : ''}</div>`).join('');
+    return `<div class="chat" id="aChat"><div class="msg a">${hello}</div>${msgs}${busy ? '<div class="msg a dots" aria-label="Réponse en cours"><span></span><span></span><span></span></div>' : ''}</div>
+      ${!chat.length ? `<div class="achips">${CHIPS[w].map((c) => `<button data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+      <p class="small muted" style="margin:14px 0 0;text-align:center">Pas la bonne réponse ? <button class="ateam" data-team="-1" style="padding:0">Écrire à l’équipe</button></p>`;
+  }
+  const strip = (h) => String(h || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  const kbText = () => AIDE[who()].map(([t, list]) => `## ${t}\n` + list.map(([q, a]) => `- ${q} : ${strip(a)}`).join('\n')).join('\n\n');
+  function kbFull() {
+    const w = who(); let kb = kbText();
+    if (w === 'eleve') {
+      try { kb += '\n\n## Leçons disponibles (Mes cours)\n' + COURS.map((c) => `- ${c.id} : ${c.title} (${c.chap})`).join('\n'); } catch (e) {}
+      try { kb += '\n\n## Compétences\n' + SKILLS.map((k) => `- ${k.id} : ${k.name}${skillActive(k.id) ? '' : ' (pas encore ouverte)'}`).join('\n'); } catch (e) {}
+    }
+    return kb;
+  }
+  function destList() {
+    const w = who(), d = [];
+    if (w === 'eleve') {
+      d.push({ go: 'home', label: '🏠 Accueil (mission du jour)' }, { go: 'cours', label: '📚 Mes cours' }, { go: 'controles', label: '📅 Mes contrôles et copies' }, { go: 'cartes', label: '🃏 Cartes formules' }, { go: 'reglages', label: '⚙️ Menu réglages' });
+      try { if (typeof screenBrevet === 'function') d.push({ go: 'brevet', label: '🎓 Sujets type Brevet' }); } catch (e) {}
+      try { COURS.forEach((c) => d.push({ go: 'lecon:' + c.id, label: `${c.icon || '📖'} Leçon « ${c.title} »` })); } catch (e) {}
+      try { SKILLS.filter((k) => skillActive(k.id)).forEach((k) => d.push({ go: 'skill:' + k.id, label: `${k.icon || '🎯'} S’entraîner : ${k.short || k.name}` })); } catch (e) {}
+    } else if (w === 'parent') {
+      d.push({ go: 'suivi', label: '📊 Suivi' }, { go: 'controles', label: '📅 Contrôles' }, { go: 'reglages', label: '⚙️ Réglages' });
+    } else {
+      d.push({ go: 'parent', label: '👪 Je suis parent (créer un compte)' }, { go: 'eleve', label: '🎒 Je suis élève' });
+    }
+    d.push({ go: 'page:confidentialite', label: '🔒 Confidentialité' });
+    return d;
+  }
+  function go(g) {
+    const [k, id] = g.split(':'); close();
+    try {
+      if (k === 'page') { location.href = id + '.html'; return; }
+      const w = who();
+      if (w === 'parent' && ['suivi', 'controles', 'reglages'].includes(k)) {
+        PV.tab = k; savePV(); if (DASH) drawParent(); else screenParent(true); return;
+      }
+      if (w === 'visiteur') { if (k === 'parent') screenParentLogin(); else screenStudentJoin(); return; }
+      if (k === 'home') screenHome();
+      else if (k === 'cours') screenCours();
+      else if (k === 'lecon') { const c = COURS.find((x) => x.id === id); if (!c) return screenCours(); const p = coursProg(id); const i = Math.max(0, Math.min(c.sections.length - 1, (p.seen || []).length < c.sections.length ? c.sections.findIndex((_, j) => !(p.seen || []).includes(j)) : 0)); screenLesson(id, i < 0 ? 0 : i); }
+      else if (k === 'skill') screenSkill(id);
+      else if (k === 'cartes') screenCards();
+      else if (k === 'brevet') screenBrevet();
+      else if (k === 'reglages') { screenHome(); openSettings(); }
+      else if (k === 'controles') { screenHome(); const b = document.querySelector('[data-ktab="ctrl"]'); if (b) b.click(); }
+      window.scrollTo(0, 0);
+    } catch (e) { toast('Cette page n’est pas disponible ici.'); }
+  }
+  async function ask(text) {
+    text = String(text || '').trim();
+    if (text.length < 2 || busy) return;
+    chat.push({ role: 'user', text }); draft = ''; busy = true; draw();
+    let rep;
+    try {
+      const body = { who: who(), messages: chat.slice(-12).map((m) => ({ role: m.role, text: m.role === 'user' ? m.text : strip(m.html) })), kb: kbFull(), dest: destList() };
+      if (token) body.token = token;
+      const r = await fetch(AIDE_FN, { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      rep = await r.json();
+    } catch (e) { rep = { ok: false, error: 'reseau' }; }
+    busy = false;
+    if (rep && rep.ok) chat.push({ role: 'assistant', html: rep.answer, links: rep.links || [], human: !!rep.human });
+    else {
+      // Secours : réponses de l'aide qui ressemblent à la question, et proposition d'écrire à l'équipe
+      const m = match(text, 2);
+      const why = rep && rep.error === 'limite' ? 'Tu as posé beaucoup de questions en peu de temps : réessaie dans un moment.'
+        : rep && rep.error === 'reseau' ? 'Pas de connexion pour l’instant.' : 'Je ne peux pas répondre pour l’instant.';
+      chat.push({ role: 'assistant', html: `${why}${m.length ? '<br><br>Ces réponses de l’aide peuvent t’aider :' + m.map((x) => qa(x.q, x.a)).join('') : ''}`, links: [], human: true });
+    }
+    draw();
   }
 
   function draw() {
+    const isChat = tab === 'ask' && !team;
     panel.innerHTML = `<div class="ah"><h2>Aide</h2><div class="atabs" role="tablist">
         <button role="tab" data-t="browse" class="${tab === 'browse' ? 'on' : ''}" aria-selected="${tab === 'browse'}">Parcourir l’aide</button>
         <button role="tab" data-t="ask" class="${tab === 'ask' ? 'on' : ''}" aria-selected="${tab === 'ask'}">Poser ma question</button></div></div>
-      <div class="ab">${tab === 'browse' ? `<input class="afilter" id="aFil" type="search" placeholder="Filtrer par mot-clé" value="${esc(filter)}" autocomplete="off">${'<div id="aList">' + browseHtml() + '</div>'}` : askHtml()}</div>`;
-    panel.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { tab = b.dataset.t; draw(); });
+      <div class="ab" id="aBody">${tab === 'browse' ? `<input class="afilter" id="aFil" type="search" placeholder="Filtrer par mot-clé" value="${esc(filter)}" autocomplete="off">${'<div id="aList">' + browseHtml() + '</div>'}` : team ? teamHtml() : chatHtml()}</div>
+      ${isChat ? `<div class="acomp"><textarea id="aQ" rows="1" maxlength="1500" placeholder="${who() === 'eleve' ? 'Écris ta question…' : 'Ta question…'}" aria-label="Ta question">${esc(draft)}</textarea><button class="asend" id="aGo" aria-label="Envoyer" ${busy ? 'disabled' : ''}>➤</button></div>` : ''}`;
+    panel.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { tab = b.dataset.t; team = false; draw(); });
     const fil = panel.querySelector('#aFil');
     if (fil) fil.oninput = () => { filter = fil.value; panel.querySelector('#aList').innerHTML = browseHtml(); };
-    const t = panel.querySelector('#aTxt');
-    if (t) {
-      let tm; const sug = panel.querySelector('#aSug'); sug.innerHTML = sugHtml();
-      t.oninput = () => { draft = t.value; clearTimeout(tm); tm = setTimeout(() => { sug.innerHTML = sugHtml(); }, 250); };
-    }
+    panel.querySelectorAll('[data-go]').forEach((b) => b.onclick = () => go(b.dataset.go));
+    panel.querySelectorAll('[data-chip]').forEach((b) => b.onclick = () => ask(b.dataset.chip));
+    panel.querySelectorAll('[data-team]').forEach((b) => b.onclick = () => {
+      // Le message à l'équipe reprend la conversation, pour ne rien retaper
+      const conv = chat.map((m) => (m.role === 'user' ? 'Q : ' + m.text : 'R : ' + strip(m.html))).join('\n');
+      draft = conv ? `${conv}\n\nMa question : ` : draft; team = true; sent = false; draw();
+      const t = panel.querySelector('#aTxt'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+    });
+    const back = panel.querySelector('#aBack'); if (back) back.onclick = () => { team = false; sent = false; draft = ''; draw(); };
+    const t = panel.querySelector('#aTxt'); if (t) t.oninput = () => { draft = t.value; };
     const m = panel.querySelector('#aMail'); if (m) m.oninput = () => { mail = m.value; };
-    const nw = panel.querySelector('#aNew'); if (nw) nw.onclick = () => { sent = false; draw(); };
     const s = panel.querySelector('#aSend'); if (s) s.onclick = send;
+    const q = panel.querySelector('#aQ');
+    if (q) {
+      const fit = () => { q.style.height = 'auto'; q.style.height = Math.min(120, q.scrollHeight) + 'px'; };
+      q.oninput = () => { draft = q.value; fit(); }; fit();
+      q.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(q.value); } };
+      panel.querySelector('#aGo').onclick = () => ask(q.value);
+      if (!busy && chat.length) setTimeout(() => q.focus({ preventScroll: true }), 0);
+    }
+    const body = panel.querySelector('#aBody'); if (isChat && chat.length) body.scrollTop = body.scrollHeight;
   }
 
   function ctxOf() {
@@ -191,18 +306,18 @@
     if (who() === 'visiteur' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail.trim())) { toast('Indique ton adresse e-mail pour recevoir la réponse.'); return; }
     s.disabled = true; s.textContent = 'Envoi…';
     try {
-      const body = { action: 'question', text: txt, ctx: ctxOf() };
+      const body = { action: 'question', text: txt.slice(-2000), ctx: ctxOf() };
       if (token) body.token = token; else body.email = mail.trim();
       const r = await mailFn(body);
       if (r.ok) { sent = true; draft = ''; draw(); return; }
       toast(r.error === 'limite' ? 'Tu as déjà envoyé plusieurs questions : réessaie dans une heure.' : r.error === 'email' ? 'Cette adresse e-mail ne semble pas valide.' : 'Envoi impossible pour l’instant. Réessaie plus tard.');
     } catch (e) { toast('Pas de connexion : réessaie quand tu auras du réseau.'); }
-    s.disabled = false; s.textContent = 'Envoyer ma question';
+    s.disabled = false; s.textContent = 'Envoyer à l’équipe';
   }
 
   let lastWho = null;
   function open() {
-    if (lastWho !== who()) { lastWho = who(); filter = ''; sent = false; }
+    if (lastWho !== who()) { lastWho = who(); filter = ''; sent = false; chat = []; team = false; draft = ''; }
     draw(); panel.hidden = false; btn.innerHTML = ICON_X; btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-label', 'Fermer l’aide');
   }
   function close() { panel.hidden = true; btn.innerHTML = ICON_Q; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-label', 'Aide'); }

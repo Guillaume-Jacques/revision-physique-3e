@@ -35,6 +35,12 @@ jobs:
     defaults: { run: { working-directory: mobile } }
     steps:
       - uses: actions/checkout@v4
+      - name: Xcode 26 (exigé par Apple)
+        working-directory: .
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          echo "Xcode choisi : $X"; [ -n "$X" ] || { echo "Xcode 26 introuvable"; ls /Applications | grep Xcode; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"; xcodebuild -version
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
@@ -63,6 +69,13 @@ jobs:
           if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "Secrets App Store Connect absents : envoi TestFlight ignoré."; fi
       - if: steps.chk.outputs.ok == 'true'
         uses: actions/checkout@v4
+      - if: steps.chk.outputs.ok == 'true'
+        name: Xcode 26 (exigé par Apple)
+        working-directory: .
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          echo "Xcode choisi : $X"; [ -n "$X" ] || { echo "Xcode 26 introuvable"; ls /Applications | grep Xcode; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"; xcodebuild -version
       - if: steps.chk.outputs.ok == 'true'
         uses: actions/setup-node@v4
         with: { node-version: 22 }

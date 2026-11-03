@@ -1,0 +1,4 @@
+exclude:
+  - mobile
+  - sql
+  - supabase

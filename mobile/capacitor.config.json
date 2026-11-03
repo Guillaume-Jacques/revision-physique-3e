@@ -1,0 +1,17 @@
+{
+  "appId": "fr.guillaumejacques.revisions",
+  "appName": "Révisions physique-chimie",
+  "webDir": "www",
+  "server": {
+    "url": "https://physique.guillaumejacques.fr/",
+    "cleartext": false,
+    "errorPath": "offline.html",
+    "allowNavigation": ["physique.guillaumejacques.fr"]
+  },
+  "ios": { "contentInset": "never", "scheme": "Revisions" },
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#5b3df5", "showSpinner": false },
+    "StatusBar": { "style": "LIGHT", "backgroundColor": "#5b3df5", "overlaysWebView": false }
+  }
+}

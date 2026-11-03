@@ -734,7 +734,8 @@ function missionCard() {
 /* Installer l'appli sur l'écran d'accueil du téléphone */
 let installEvt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
-const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const isStandalone = () => isNativeApp() || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function installHow() {
   return isIOS() ? 'Dans Safari, touche le bouton <b>Partager</b> (le carré avec une flèche ⬆️), puis <b>« Sur l’écran d’accueil »</b>.'

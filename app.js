@@ -1828,8 +1828,10 @@ function admHtml(a) {
       ${k('Exercices (7 j)', a.ex_7, `${a.ex_all} depuis le début`)}
     </div></div>
     <div class="card stack"><h2>📋 Familles inscrites</h2>
-      ${(a.list || []).length ? `<table>${a.list.map((f) => `<tr><td><b>${esc(f.email)}</b><br><span class="small muted">inscrit le ${d(f.created)} • ${f.kids} enfant${f.kids > 1 ? 's' : ''}</span></td><td class="tact small">${f.ex7} ex. / 7 j<br><span class="muted">dernier : ${d(f.last_ex)}</span></td></tr>`).join('')}</table>` : '<p class="muted small">Aucune famille pour l’instant.</p>'}
-      <p class="small muted" style="margin:0">Visible par toi seul. Le compte « test élève » n’est pas compté.</p>
+      ${(a.list || []).length ? `<div class="admfam">${a.list.filter((f) => f.email !== 'contact+applereview@guillaumejacques.fr').map((f) => `<div class="admf"><b class="admm">${esc(f.email)}</b>
+        <span class="small muted">Inscrit le ${d(f.created)} • ${f.kids} enfant${f.kids > 1 ? 's' : ''}</span>
+        <span class="small">${f.ex7} exercice${f.ex7 > 1 ? 's' : ''} sur 7 jours • dernier : ${d(f.last_ex)}</span></div>`).join('')}</div>` : '<p class="muted small">Aucune famille pour l’instant.</p>'}
+      <p class="small muted" style="margin:0">Visible par toi seul. Le compte « test élève » n’est pas compté ; le compte de démonstration Apple n’apparaît pas dans la liste.</p>
     </div>`;
 }
 async function loadAdmin() {

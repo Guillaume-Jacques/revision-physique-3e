@@ -362,3 +362,9 @@ table.cmp td { font-size: .95em; }
 .answer.sci.expo .expw { margin-top: -18px; }
 .sciunit { display: flex; justify-content: flex-end; margin-top: -6px; }
 .sciunit .unit { display: inline-block; padding: 6px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-weight: 900; }
+
+/* Liste des familles (onglet Appli) : pas de débordement sur téléphone */
+.admfam { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.admf { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line, #e6e3f3); min-width: 0; }
+.admf:first-child { border-top: 0; padding-top: 0; }
+.admm { overflow-wrap: anywhere; word-break: break-word; }

@@ -1,0 +1,6 @@
+Je révise is a French revision app for 9th-grade physics and chemistry (students aged 14-15) with a parent dashboard.
+
+DEMO ACCESS: tap "Je suis parent", enter the demo e-mail given in the sign-in fields, then tap "Recevoir mon code" and type the 6-digit code given as password (no e-mail needed for this demo account). The demo family has one student profile, "Léo".
+To see the student side: in the parent space, open Réglages › Accès › "Ajouter Léo sur cet appareil", then "Changer de profil".
+
+Native features: camera / photo library to add photos of corrected tests (Contrôles tab), offline screen when there is no connection.

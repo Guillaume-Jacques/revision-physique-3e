@@ -1,0 +1,38 @@
+name: Fiche App Store (textes + captures)
+
+# Envoie la fiche « Je révise » (mobile/fastlane/metadata et screenshots) vers App Store Connect.
+# Lancement manuel uniquement ; ne soumet rien à la revue.
+on:
+  workflow_dispatch:
+
+jobs:
+  deliver:
+    runs-on: macos-15
+    defaults: { run: { working-directory: mobile } }
+    env:
+      ASC_KEY_ID: MV6J5SXHYM
+      ASC_ISSUER_ID: 248ae3f4-eb94-4fa9-bcab-c84eef488834
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer fastlane
+        run: gem install fastlane --no-document -q && fastlane --version | tail -1
+      - name: Clé App Store Connect
+        run: |
+          python3 - <<'PY'
+          import json, os, re, textwrap
+          raw = os.environ["ASC_KEY_P8"].replace("\r", "")
+          body = re.sub(r"[^A-Za-z0-9+/=]", "", re.sub(r"-----(BEGIN|END)[^-]*-----", "", raw))
+          pem = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(textwrap.wrap(body, 64)) + "\n-----END PRIVATE KEY-----\n"
+          json.dump({"key_id": os.environ["ASC_KEY_ID"], "issuer_id": os.environ["ASC_ISSUER_ID"], "key": pem, "in_house": False},
+                    open(os.environ["RUNNER_TEMP"] + "/asc.json", "w"))
+          PY
+      - name: Envoyer la fiche
+        run: |
+          fastlane deliver --api_key_path "$RUNNER_TEMP/asc.json" \
+            --app_identifier fr.guillaumejacques.revisions --platform ios \
+            --metadata_path fastlane/metadata --screenshots_path fastlane/screenshots \
+            --skip_binary_upload true --overwrite_screenshots true \
+            --submit_for_review false --automatic_release false \
+            --run_precheck_before_submit false --force true
+          rm -f "$RUNNER_TEMP/asc.json"

@@ -1820,7 +1820,12 @@ async function nativePushRegister() {
     NPUSH_DONE = true;
     const P = C.Plugins.PushNotifications;
     await P.removeAllListeners().catch(() => {});
-    await P.addListener('registration', (t) => { if (t && t.value && token) rpc('rv_apns_save', { p_token: token, p_device: t.value }).catch(() => {}); });
+    await P.addListener('registration', async (t) => {
+      if (!t || !t.value || !token) return;
+      try { const r = await rpc('rv_apns_save', { p_token: token, p_device: t.value }); toast(r && r.ok ? '🔔 Notifications activées sur cet iPhone' : 'Notifications : enregistrement refusé (' + ((r && r.error) || '?') + ')'); }
+      catch (e) { toast('Notifications : pas de connexion au serveur'); }
+    });
+    await P.addListener('registrationError', (e) => toast('Notifications indisponibles : ' + String((e && (e.error || e.message)) || e).slice(0, 120)));
     let perm = await P.checkPermissions();
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await P.requestPermissions();
     if (perm.receive === 'granted') await P.register();

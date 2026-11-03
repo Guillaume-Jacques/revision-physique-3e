@@ -13,7 +13,7 @@ const AI_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 const BREVO = Deno.env.get('BREVO_API_KEY') || '';
 const MODEL = 'claude-sonnet-5-5';
 const APP_URL = 'https://physique.guillaumejacques.fr/';
-const APP_NAME = 'Révisions physique-chimie';
+const APP_NAME = 'Je révise';
 const BUCKET = 'copies';
 const MAX_PHOTOS = 8;
 

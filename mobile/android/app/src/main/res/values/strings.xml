@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Physique-chimie</string>
-    <string name="title_activity_main">Physique-chimie</string>
+    <string name="app_name">Je révise</string>
+    <string name="title_activity_main">Je révise</string>
     <string name="package_name">fr.guillaumejacques.revisions</string>
     <string name="custom_url_scheme">fr.guillaumejacques.revisions</string>
 </resources>

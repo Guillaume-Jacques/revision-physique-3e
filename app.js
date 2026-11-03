@@ -25,7 +25,7 @@ async function rpc(fn, args) {
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
-const APP_NAME = 'Révisions physique-chimie';
+const APP_NAME = 'Je révise';
 const APP_TAG = 'La physique-chimie de 3e, une séance après l’autre.';
 const MAIL_FN = `${CFG.url}/functions/v1/rv-mail`;
 async function mailFn(body) {
@@ -428,10 +428,10 @@ function screenStudentJoin(err) {
 /* Partage de l'appli entre élèves : le lien #ami ouvre une page qui renvoie vers un parent */
 const appUrl = () => `${location.origin}${location.pathname}`;
 function shareToParent() {
-  shareText(APP_NAME, `Bonjour, je voudrais utiliser ${APP_NAME} pour réviser la physique-chimie. C’est toi qui dois m’inscrire : ouvre le lien, touche « Je suis parent », entre ton adresse e-mail puis ajoute mon prénom. Ensuite tu m’envoies mon lien d’accès.`, appUrl());
+  shareText(APP_NAME, `Bonjour, je voudrais utiliser « ${APP_NAME} » pour réviser la physique-chimie. C’est toi qui dois m’inscrire : ouvre le lien, touche « Je suis parent », entre ton adresse e-mail puis ajoute mon prénom. Ensuite tu m’envoies mon lien d’accès.`, appUrl());
 }
 function shareToFriend() {
-  shareText(APP_NAME, `J’utilise ${APP_NAME} pour réviser la physique-chimie de 3e : cours, exercices et contrôles types. Pour l’avoir, ouvre ce lien et montre-le à un de tes parents : c’est lui qui t’inscrit, en une minute.`, appUrl() + '#ami');
+  shareText(APP_NAME, `J’utilise « ${APP_NAME} » pour réviser la physique-chimie de 3e : cours, exercices et contrôles types. Pour l’avoir, ouvre ce lien et montre-le à un de tes parents : c’est lui qui t’inscrit, en une minute.`, appUrl() + '#ami');
 }
 function screenFriend() {
   render(`${brandHead('')}
@@ -2125,7 +2125,7 @@ async function shareText(title, text, url) {
   catch (e) { ask({ title: 'Copie ce message', text: 'Puis colle-le dans WhatsApp ou un SMS.', copy: full, ok: 'Copier', cancel: 'Fermer' }); }
 }
 function inviteShare(code) {
-  shareText(APP_NAME, `Je te conseille ${APP_NAME}, une appli gratuite pour aider nos enfants à réviser la physique-chimie de 3e. Touche « Je suis parent », entre ton adresse e-mail et tape le code reçu : tu crées ton propre espace pour tes enfants.`, `${location.origin}${location.pathname}`);
+  shareText(APP_NAME, `Je te conseille « ${APP_NAME} », une appli gratuite pour aider nos enfants à réviser la physique-chimie de 3e. Touche « Je suis parent », entre ton adresse e-mail et tape le code reçu : tu crées ton propre espace pour tes enfants.`, `${location.origin}${location.pathname}`);
 }
 function bindParent(st) {
   const $ = (id) => document.getElementById(id);

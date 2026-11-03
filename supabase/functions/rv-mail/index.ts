@@ -4,7 +4,7 @@ const SB = Deno.env.get('SUPABASE_URL')!;
 const SK = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const BREVO = Deno.env.get('BREVO_API_KEY') || '';
 const APP_URL = 'https://physique.guillaumejacques.fr/';
-const APP_NAME = 'Révisions physique-chimie';
+const APP_NAME = 'Je révise';
 const SENDER = { name: APP_NAME, email: 'contact@guillaumejacques.fr' };
 
 const CORS = {
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       const r = await rpc('rv_magic_create', { p_email: String(body.email || ''), p_invite: body.invite ? String(body.invite) : null, p_consent: !!body.consent });
       if (r.error) return json({ error: r.error });
       const link = `${APP_URL}#m=${r.token}`;
-      await send(r.email, r.new ? `Bienvenue sur ${APP_NAME} – code ${r.code}` : `${r.code} : ton code de connexion à ${APP_NAME}`,
+      await send(r.email, r.new ? `Bienvenue sur « ${APP_NAME} » – code ${r.code}` : `${r.code} : ton code de connexion à « ${APP_NAME} »`,
         layout(r.new ? 'Bienvenue ! Confirme ton adresse' : 'Ton lien de connexion',
           `<p>Touche le bouton ci-dessous pour ouvrir ton espace parent. Il fonctionne pendant <b>30 minutes</b>, une seule fois.</p>
            <p style="margin:18px 0 6px"><b>Tu utilises l’appli installée sur ton téléphone ?</b> Tape plutôt ce code dans l’appli :</p>
@@ -140,14 +140,14 @@ Deno.serve(async (req) => {
       const kids = r.kids ? esc(r.kids) : 'vos enfants';
       await send(r.email, `${r.from} t’invite à suivre les révisions de ${r.kids || 'vos enfants'}`,
         layout(`Suis les révisions de ${kids}`,
-          `<p><b>${esc(r.from)}</b> t’a ajouté(e) comme parent dans ${APP_NAME}. Tu verras le même suivi : séances, réussite, erreurs à travailler et dates de contrôle de <b>${kids}</b>.</p>
+          `<p><b>${esc(r.from)}</b> t’a ajouté(e) comme parent dans « ${APP_NAME} ». Tu verras le même suivi : séances, réussite, erreurs à travailler et dates de contrôle de <b>${kids}</b>.</p>
            <p style="margin:16px 0 6px"><b>Pour entrer, c’est simple :</b></p>
            <ol style="margin:0 0 10px;padding-left:20px"><li>Touche le bouton ci-dessous puis « Je suis parent ».</li>
            <li>Entre cette adresse : <b>${esc(r.email)}</b></li>
            <li>Tape le code à 6 chiffres que tu recevras par e-mail.</li></ol>
            <p style="color:#77738f;font-size:13px">Pas besoin de mot de passe ni de créer de compte. Si tu ne connais pas ${esc(r.from)}, ignore cet e-mail.</p>`,
           { href: APP_URL, label: 'Ouvrir l’espace parent' }),
-        `${r.from} t'invite à suivre les révisions de ${r.kids || 'vos enfants'} dans ${APP_NAME}. Ouvre ${APP_URL}, touche « Je suis parent », entre ${r.email} et tape le code reçu par e-mail.`, 'coparent', r.from);
+        `${r.from} t'invite à suivre les révisions de ${r.kids || 'vos enfants'} dans « ${APP_NAME} ». Ouvre ${APP_URL}, touche « Je suis parent », entre ${r.email} et tape le code reçu par e-mail.`, 'coparent', r.from);
       return json({ ok: true, email: r.email });
     }
 

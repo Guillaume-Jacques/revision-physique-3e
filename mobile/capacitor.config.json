@@ -1,6 +1,6 @@
 {
   "appId": "fr.guillaumejacques.revisions",
-  "appName": "Révisions physique-chimie",
+  "appName": "Je révise",
   "webDir": "www",
   "server": {
     "url": "https://physique.guillaumejacques.fr/",

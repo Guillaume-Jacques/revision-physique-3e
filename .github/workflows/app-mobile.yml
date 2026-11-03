@@ -47,13 +47,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build | tail -20
 
   ios-testflight:
-    # Envoi automatique vers TestFlight. Ne fait rien tant que les 3 secrets ASC_* ne sont pas renseignés dans GitHub.
+    # Envoi automatique vers TestFlight. Ne fait rien tant que le secret ASC_KEY_P8 n'est pas renseigné dans GitHub.
     runs-on: macos-15
     needs: ios
     defaults: { run: { working-directory: mobile } }
     env:
-      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_ID: MV6J5SXHYM
+      ASC_ISSUER_ID: 248ae3f4-eb94-4fa9-bcab-c84eef488834
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
       TEAM_ID: 5XMBG5V5C3
     steps:

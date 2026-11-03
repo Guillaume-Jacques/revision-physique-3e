@@ -463,6 +463,7 @@ function screenParentLogin(st) {
       </details>`}
       <label class="small" for="pmail"><b>Ton adresse e-mail</b></label>
       <div class="answer"><input id="pmail" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="prenom@exemple.fr" value="${esc(st.email || '')}"></div>
+      <div id="psug" class="tip" hidden></div>
       <div id="pinv" ${st.invite ? '' : 'hidden'} class="stack">
         <div class="tip">Bienvenue ! C’est ta première connexion : coche la case ci-dessous pour créer ton espace parent.</div>
         <label class="ck consent"><input type="checkbox" id="pok"> <span>Je certifie être <b>majeur(e)</b> et <b>parent ou responsable légal</b> de l’enfant. J’accepte que ses réponses et ses progrès soient enregistrés pour le suivi de ses révisions, comme expliqué dans la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</span></label>
@@ -476,6 +477,15 @@ function screenParentLogin(st) {
   const go = async () => {
     const email = document.getElementById('pmail').value.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('Vérifie ton adresse e-mail.');
+    const sug = mailTypo(email), sb = document.getElementById('psug');
+    if (sug && sb.dataset.kept !== email) {
+      sb.hidden = false;
+      sb.innerHTML = `Vouliez-vous dire <b>${esc(sug)}</b> ?<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" id="psugy" style="flex:1">Oui, corriger</button><button class="btn ghost" id="psugn" style="flex:1">Non, garder mon adresse</button></div>`;
+      document.getElementById('psugy').onclick = () => { document.getElementById('pmail').value = sug; sb.hidden = true; go(); };
+      document.getElementById('psugn').onclick = () => { sb.dataset.kept = email; sb.hidden = true; go(); };
+      return msg('');
+    }
+    sb.hidden = true;
     const inv = !document.getElementById('pinv').hidden;
     const consent = inv ? document.getElementById('pok').checked : false;
     if (inv && !consent) return msg('Coche la case pour créer ton espace.');
@@ -492,6 +502,21 @@ function screenParentLogin(st) {
   document.getElementById('pgo').onclick = go;
   document.getElementById('pmail').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   document.getElementById('pback').onclick = () => screenLanding();
+}
+
+/* Fautes de frappe courantes dans l'adresse e-mail : propose « Vouliez-vous dire … ? » */
+const MAIL_DOMAINS = ['gmail.com','hotmail.fr','hotmail.com','yahoo.fr','yahoo.com','orange.fr','wanadoo.fr','free.fr','sfr.fr','laposte.net','outlook.fr','outlook.com','live.fr','live.com','icloud.com','me.com','msn.com','neuf.fr','bbox.fr','aol.com','gmx.fr','protonmail.com','proton.me','numericable.fr','club-internet.fr'];
+function mailTypo(email) {
+  const m = /^([^@\s]+)@([^@\s]+)$/.exec(String(email || '').trim().toLowerCase());
+  if (!m) return null;
+  const dom = m[2];
+  if (MAIL_DOMAINS.includes(dom)) return null;
+  const dist = (a, b) => { const d = Array.from({ length: a.length + 1 }, (_, i) => [i]); for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1),
+      i > 1 && j > 1 && a[i-1] === b[j-2] && a[i-2] === b[j-1] ? d[i-2][j-2] + 1 : 99); return d[a.length][b.length]; };
+  let best = null, bd = 9;
+  for (const d of MAIL_DOMAINS) { const x = dist(dom, d); if (x < bd) { bd = x; best = d; } }
+  return best && bd > 0 && bd <= 2 ? `${m[1]}@${best}` : null;
 }
 function screenMailSent(email) {
   render(`

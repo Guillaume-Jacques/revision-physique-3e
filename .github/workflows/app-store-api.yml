@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action (prix-gratuit, etat)"
+        description: "Action (prix-gratuit, etat, preparer)"
         required: true
         default: etat
 

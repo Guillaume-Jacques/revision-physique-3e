@@ -2080,7 +2080,7 @@ function tabReglages(st) {
   ${parentsCard()}
   <div class="card stack">
     <h2>📣 Faire connaître l’appli à une autre famille</h2>
-    <p class="small muted" style="margin:0">Pour un ami ou un collègue qui veut faire réviser <b>ses propres enfants</b>. Il crée son espace à lui avec son adresse e-mail : il ne voit pas tes enfants, et tu ne vois pas les siens. C’est gratuit.</p>
+    <p class="small muted" style="margin:0">Pour un ami ou un collègue qui veut faire réviser <b>ses propres enfants</b>. Il crée son espace à lui avec son adresse e-mail : il ne voit pas tes enfants, et tu ne vois pas les siens. L’inscription est gratuite.</p>
     <button class="btn ghost" id="invadd">Envoyer l’appli à une autre famille</button>
   </div>
   ${FAM.owner === false ? `<details class="card stack"><summary><b>Mon compte</b></summary><div class="stack" style="margin-top:8px">

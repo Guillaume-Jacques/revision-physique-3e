@@ -770,12 +770,6 @@ COURS.push({
       steps: ['Gain de 2 électrons : charge 2−, l’ion s’écrit S²⁻ (un anion).', 'Électrons : 16 + 2 = 18.'], rep: 'L’ion sulfure S²⁻ possède 16 protons et 18 électrons.' },
   ],
 });
-(() => {
-  const c = COURS.find((x) => x.id === 'C6');
-  if (c) c.videos = { 0: [['Élément chimique et atome', 'RdjjCXnsTLI']], 1: [['De quoi est composé un atome ?', 'gZFsimsG-44']], 2: [['Déterminer la composition d’un atome', 'dEEMoFKD3Ww']],
-    6: [['Qu’est-ce qu’une molécule ?', 'Y8JZAbXu9fQ'], ['Formule chimique d’une molécule', '0zrIQZkD84E']], 7: [['Qu’est-ce qu’un ion ?', 'edke0BOjeMU'], ['Ions monoatomiques et polyatomiques', 'HAZKFfyCgsI']] };
-})();
-
 /* ---------- Accroches qui ont besoin d'app.js ---------- */
 window.addEventListener('DOMContentLoaded', () => {
   if (typeof finishRun === 'function') {

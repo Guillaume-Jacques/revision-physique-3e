@@ -970,7 +970,7 @@ function screenLesson(id, i) {
   const chunks = chunkLesson(sec.html), nc = chunks.length, quiz = sec.quiz || [];
   const qAt = (k) => Math.min(nc - 1, 2 * k + 1); // une question tous les 2 écrans
   const already = p.seen.includes(i);
-  const video = (c.videos || {})[i];
+  const video = null; // vidéos externes retirées (droits)
   const groups = chunks.map((h, g) => `
     <div class="grp" data-g="${g}" ${g > 0 && !already ? 'hidden' : ''}>
       <div class="card lessonc ${g === 0 ? '' : 'cont'} pop" style="margin-top:10px">${g === 0 ? `<h2>${sec.title}</h2>` : ''}${h}

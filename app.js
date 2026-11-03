@@ -1780,6 +1780,7 @@ async function screenParent(useCache) {
     DASH = data; DASH_AT = Date.now();
   }
   FAM = DASH.family || {}; INVITES = DASH.invites || [];
+  if (FAM.admin) nativePushRegister();
   drawParent();
 }
 function curChild() {
@@ -1808,6 +1809,22 @@ function drawParent() {
   $app.querySelectorAll('[data-psj]').forEach((b) => b.onclick = () => { PV.sj = b.dataset.psj || null; PV.keepY = true; savePV(); drawParent(); });
   bindParent(st);
   if (tab === 'admin' && FAM.admin) loadAdmin();
+}
+
+/* Notifications natives (appli iPhone) : l'administrateur est prévenu de chaque nouvelle inscription */
+let NPUSH_DONE = false;
+async function nativePushRegister() {
+  try {
+    const C = window.Capacitor;
+    if (NPUSH_DONE || !isNativeApp() || !C || C.getPlatform() !== 'ios' || !C.Plugins || !C.Plugins.PushNotifications) return;
+    NPUSH_DONE = true;
+    const P = C.Plugins.PushNotifications;
+    await P.removeAllListeners().catch(() => {});
+    await P.addListener('registration', (t) => { if (t && t.value && token) rpc('rv_apns_save', { p_token: token, p_device: t.value }).catch(() => {}); });
+    let perm = await P.checkPermissions();
+    if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await P.requestPermissions();
+    if (perm.receive === 'granted') await P.register();
+  } catch (e) { NPUSH_DONE = false; }
 }
 /* Mini tableau de bord de l'appli (administrateur seulement) */
 let ADM = null, ADM_AT = 0;

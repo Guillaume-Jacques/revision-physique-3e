@@ -3,6 +3,8 @@
 //           rien fait aujourd'hui, rappels autorisés par le parent ; au plus un rappel par jour.
 // - test  : bouton « Envoyer un rappel test » de l'espace parent (jeton parent + enfant).
 // - duel  : l'élève vient de lancer un défi → on prévient l'ami (une fois, si ses rappels sont actifs).
+// - signup: déclenché par la base à chaque nouvelle famille → notification iPhone (APNs) à l'administrateur.
+// - apns_test : bouton de test depuis l'espace parent de l'administrateur.
 import webpush from 'npm:web-push@3.6.7';
 
 const SB = Deno.env.get('SUPABASE_URL')!;
@@ -45,6 +47,49 @@ async function sendAll(subs: Sub[], payload: Record<string, unknown>) {
   return { sent, gone, errs };
 }
 
+
+/* ---------- Notifications natives iPhone (APNs, clé .p8 dans le secret APNS_KEY_P8) ---------- */
+const APNS_TOPIC = 'fr.guillaumejacques.revisions';
+const TEAM_ID = '5XMBG5V5C3';
+let APNS_JWT: { t: string; at: number } | null = null;
+const b64u = (b: ArrayBuffer | Uint8Array | string) => {
+  const bytes = typeof b === 'string' ? new TextEncoder().encode(b) : new Uint8Array(b as ArrayBuffer);
+  let s = ''; bytes.forEach((x) => (s += String.fromCharCode(x)));
+  return btoa(s).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+};
+async function apnsJwt(keyId: string) {
+  if (APNS_JWT && Date.now() - APNS_JWT.at < 40 * 60000) return APNS_JWT.t;
+  const raw = (Deno.env.get('APNS_KEY_P8') || '').replace(/-----(BEGIN|END)[^-]*-----/g, '').replace(/[^A-Za-z0-9+/=]/g, '');
+  if (!raw) throw new Error('APNS_KEY_P8 manquante');
+  const der = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const head = b64u(JSON.stringify({ alg: 'ES256', kid: keyId })), claims = b64u(JSON.stringify({ iss: TEAM_ID, iat: Math.floor(Date.now() / 1000) }));
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(`${head}.${claims}`));
+  APNS_JWT = { t: `${head}.${claims}.${b64u(sig)}`, at: Date.now() };
+  return APNS_JWT.t;
+}
+async function apnsSend(devices: string[], title: string, text: string, keyId: string) {
+  const jwt = await apnsJwt(keyId);
+  let sent = 0; const gone: string[] = [], errs: string[] = [];
+  for (const d of devices) {
+    const r = await fetch(`https://api.push.apple.com/3/device/${d}`, {
+      method: 'POST',
+      headers: { authorization: `bearer ${jwt}`, 'apns-topic': APNS_TOPIC, 'apns-push-type': 'alert', 'apns-priority': '10' },
+      body: JSON.stringify({ aps: { alert: { title, body: text }, sound: 'default' } }),
+    });
+    if (r.ok) sent++; else { const t = await r.text(); if (r.status === 410 || /BadDeviceToken|Unregistered/.test(t)) gone.push(d); errs.push(`${r.status} ${t}`.slice(0, 120)); }
+  }
+  return { sent, gone, errs };
+}
+async function adminDevices() {
+  const r = await fetch(`${SB}/rest/v1/rpc/rv_apns_admin_devices`, { method: 'POST', headers: H, body: '{}' });
+  return r.ok ? ((await r.json()) as string[]) : [];
+}
+async function apnsKeyId() {
+  const r = await fetch(`${SB}/rest/v1/rv_config?select=v&k=eq.apns_key_id`, { headers: H });
+  const [row] = await r.json(); return row ? row.v as string : '';
+}
+
 const plural = (n: number, a: string, b: string) => (n > 1 ? b : a);
 
 Deno.serve(async (req) => {
@@ -83,6 +128,22 @@ Deno.serve(async (req) => {
       const res = await sendAll(t.subs, { title: '⚔️ Nouveau défi', body: `${t.from} te lance un défi de 5 questions. À toi de jouer !`, url: '/', tag: 'rv-duel' });
       if (res.gone.length) await rpc('rv_push_mark', { p_secret: c.cron_secret, p_profile: null, p_sent: res.sent, p_gone: res.gone, p_daily: false });
       return json({ ok: true, sent: res.sent.length });
+    }
+    if (body.action === 'signup') {
+      if (!c.cron_secret || req.headers.get('x-cron') !== c.cron_secret) return json({ error: 'auth' }, 401);
+      const kid = await apnsKeyId(), devs = await adminDevices();
+      if (!kid || !devs.length) return json({ ok: true, sent: 0, reason: !kid ? 'no_key' : 'no_device' });
+      const res = await apnsSend(devs, '👋 Nouveau parent inscrit', `${String(body.email || 'Un parent')} vient de créer son espace dans Je révise.`, kid);
+      if (res.gone.length) await fetch(`${SB}/rest/v1/rv_apns?device=in.(${res.gone.map((g) => `"${g}"`).join(',')})`, { method: 'DELETE', headers: H });
+      return json({ ok: true, sent: res.sent, errors: res.errs });
+    }
+    if (body.action === 'apns_test') {
+      const ok = await rpc('rv_apns_is_admin', { p_token: String(body.token || '') });
+      if (ok !== true) return json({ error: 'auth' }, 401);
+      const kid = await apnsKeyId(), devs = await adminDevices();
+      if (!kid || !devs.length) return json({ ok: true, sent: 0, reason: !kid ? 'no_key' : 'no_device' });
+      const res = await apnsSend(devs, 'Notification test', '🔔 Les notifications de Je révise arrivent bien sur cet iPhone.', kid);
+      return json({ ok: true, sent: res.sent, errors: res.errs });
     }
     return json({ error: 'action' }, 400);
   } catch (e) {

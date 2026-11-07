@@ -1,5 +1,5 @@
 """Petites actions App Store Connect via l'API officielle (clé ASC_KEY_P8 des secrets GitHub).
-Usage : python3 asc.py prix-gratuit | etat"""
+Usage : python3 asc.py prix-gratuit | etat | preparer [version] | soumettre"""
 import json, os, re, sys, textwrap, time, urllib.request, urllib.error
 import jwt  # pyjwt
 
@@ -42,12 +42,35 @@ def etat():
     b = api("GET", f"/v1/builds?filter[app]={APP_ID}&sort=-uploadedDate&limit=5")
     for x in b["data"]: print("Build", x["attributes"]["version"], x["attributes"]["processingState"], x["id"])
 
+EDITABLE = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "WAITING_FOR_REVIEW", "INVALID_BINARY")
+
+def version_editable(want=None):
+    """La version App Store en préparation ; créée si elle n'existe pas encore (want = « 1.0.1 »)."""
+    vers = api("GET", f"/v1/apps/{APP_ID}/appStoreVersions?filter[platform]=IOS&limit=10")["data"]
+    v = next((x for x in vers if x["attributes"]["appStoreState"] in EDITABLE), None)
+    if v: return v["id"], v["attributes"]["versionString"]
+    if not want: sys.exit("Aucune version en préparation : indique le numéro, ex. preparer 1.0.1")
+    v = api("POST", "/v1/appStoreVersions", {"data": {"type": "appStoreVersions", "attributes": {"platform": "IOS", "versionString": want, "releaseType": "MANUAL"},
+            "relationships": {"app": {"data": {"type": "apps", "id": APP_ID}}}}})["data"]
+    print("Version", want, "créée ✓"); return v["id"], want
+
 def preparer():
-    vers = api("GET", f"/v1/apps/{APP_ID}/appStoreVersions?filter[platform]=IOS&limit=5")["data"]
-    v = next(x for x in vers if x["attributes"]["appStoreState"] in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED"))
-    vid = v["id"]
-    builds = api("GET", f"/v1/builds?filter[app]={APP_ID}&filter[processingState]=VALID&sort=-uploadedDate&limit=1")["data"]
+    want = sys.argv[2] if len(sys.argv) > 2 else None
+    vid, vstr = version_editable(want)
+    builds = [b for b in api("GET", f"/v1/builds?filter[app]={APP_ID}&filter[processingState]=VALID&sort=-uploadedDate&limit=10")["data"]
+              if b["attributes"].get("expired") is not True]
+    pre = api("GET", f"/v1/builds/{builds[0]['id']}/preReleaseVersion")["data"]["attributes"]["version"]
+    if pre != vstr: sys.exit(f"Le dernier build est en {pre}, pas en {vstr} : attendre la fin du traitement du build.")
     b = builds[0]
+    notes_path = os.path.join(os.path.dirname(__file__), "..", "fastlane", "metadata", "fr-FR", "release_notes.txt")
+    if os.path.exists(notes_path):
+        locs = api("GET", f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations")["data"]
+        fr = next((l for l in locs if l["attributes"]["locale"] == "fr-FR"), None)
+        wn = open(notes_path).read().strip()
+        if fr: api("PATCH", f"/v1/appStoreVersionLocalizations/{fr['id']}", {"data": {"type": "appStoreVersionLocalizations", "id": fr["id"], "attributes": {"whatsNew": wn}}})
+        else: api("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": {"locale": "fr-FR", "whatsNew": wn},
+                  "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
+        print("Nouveautés (fr-FR) ✓")
     api("PATCH", f"/v1/appStoreVersions/{vid}/relationships/build", {"data": {"type": "builds", "id": b["id"]}})
     print("Build rattaché :", b["attributes"]["version"])
     api("PATCH", f"/v1/appStoreVersions/{vid}", {"data": {"type": "appStoreVersions", "id": vid, "attributes": {"releaseType": "MANUAL"}}})
@@ -64,4 +87,14 @@ def preparer():
              "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
     print("Infos de revue : contact, notes, compte de démo (identifiant) ✓ — mot de passe à saisir dans App Store Connect")
 
-{"prix-gratuit": prix_gratuit, "etat": etat, "preparer": preparer}[sys.argv[1]]()
+def soumettre():
+    vid, vstr = version_editable()
+    sub = api("POST", "/v1/reviewSubmissions", {"data": {"type": "reviewSubmissions", "attributes": {"platform": "IOS"},
+          "relationships": {"app": {"data": {"type": "apps", "id": APP_ID}}}}})["data"]
+    api("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
+        "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
+                          "appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
+    api("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"submitted": True}}})
+    print("Version", vstr, "soumise à la revue Apple ✓")
+
+{"prix-gratuit": prix_gratuit, "etat": etat, "preparer": preparer, "soumettre": soumettre}[sys.argv[1]]()

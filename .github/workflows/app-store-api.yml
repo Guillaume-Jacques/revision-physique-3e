@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action (prix-gratuit, etat, preparer)"
+        description: "Action (prix-gratuit, etat, preparer [version], soumettre)"
         required: true
         default: etat
 
@@ -18,4 +18,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pip install -q pyjwt cryptography
-      - run: python3 mobile/scripts/asc.py "${{ inputs.action }}"
+      - run: python3 mobile/scripts/asc.py ${{ inputs.action }}

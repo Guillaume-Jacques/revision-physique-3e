@@ -153,7 +153,7 @@ const BREVET = [
           bq('Définition', 'Un mouvement circulaire uniforme, c’est :', 'une trajectoire en cercle, parcourue à vitesse constante',
             [['une trajectoire droite, parcourue à vitesse constante', 'Une droite donne un mouvement rectiligne.'], ['une trajectoire en cercle, avec une vitesse qui augmente', 'Uniforme veut dire que la valeur de la vitesse ne change pas.']]),
           bq('Le référentiel', 'Pour décrire sa course autour du Soleil, on se place dans le référentiel :', 'héliocentrique (centré sur le Soleil)',
-            [['terrestre', 'Par rapport au sol, on ne voit pas le tour autour du Soleil.'], ['géocentrique (centré sur la Terre)', 'Le télescope suit la Terre : par rapport au centre de la Terre, il bouge à peine.']]),
+            [['terrestre', 'Par rapport au sol, on ne voit pas le tour autour du Soleil.'], ['géocentrique (centré sur la Terre)', 'Dans le référentiel géocentrique, le télescope tourne autour de la Terre (en suivant la ligne Terre-Soleil) : on ne décrit pas ainsi son tour du Soleil.']]),
           pStep('Le télescope décrit un cercle à vitesse constante autour du Soleil : son mouvement est circulaire uniforme dans le référentiel héliocentrique.',
             [['Le télescope est immobile.', 'Il fait le tour du Soleil en un an.'], ['Le mouvement est rectiligne uniforme.', 'La trajectoire est un cercle.']]),
         ]);

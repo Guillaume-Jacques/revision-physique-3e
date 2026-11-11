@@ -385,7 +385,7 @@ function genV4(level) {
             ST.calc(`v = ${d} ÷ ${fr(t, 3)} ≈ ${fr(ans, 0)} km/h`), ST.phrase(`la vitesse moyenne est d’environ ${fr(ans, 0)} km/h.`)] });
   }
   if (pick(['ms', 'kmh']) === 'ms') {
-    const d = pick([100, 200, 400]), t = pick([10, 12.5, 20, 25, 40, 50, 80]);
+    const [d, t] = pick([[100, 10], [100, 12.5], [100, 20], [200, 25], [200, 40], [400, 50], [400, 80]]);
     const vms = d / t, ans = vms * 3.6;
     return num({ skill: 'V4', level, q: `Un coureur parcourt <b>${d} m en ${fr(t)} s</b>. Calcule sa vitesse <b>en km/h</b>.`, unit: 'km/h', ans,
       errs: [{ v: vms, code: 'noconv', msg: `${fr(vms)}, c’est la vitesse en m/s. On demandait des km/h : multiplie par 3,6.` },
@@ -396,7 +396,7 @@ function genV4(level) {
             ST.calc(`avec des m et des s, on obtient des m/s : ${d} ÷ ${fr(t)} = ${fr(vms)} m/s`),
             ST.conv(`on demande des km/h : × 3,6 → ${fr(vms)} × 3,6 = ${fr(ans)} km/h`), ST.phrase(`le coureur va à ${fr(ans)} km/h.`)] });
   }
-  const d = pick([300, 180, 360]), t = pick([4, 2.5, 5]);
+  const [d, t] = pick([[300, 4], [180, 2.5], [360, 4], [300, 5], [360, 5], [180, 4]]);
   const vk = d / t, ans = vk / 3.6;
   return num({ skill: 'V4', level, q: `Un camion parcourt <b>${d} km en ${fr(t)} h</b>. Donne sa vitesse <b>en m/s</b> (arrondis au centième).`, unit: 'm/s', ans, tol: 0.011,
     errs: [{ v: vk, code: 'noconv', msg: `${fr(vk)}, c’est en km/h. On demandait des m/s : divise par 3,6.` },

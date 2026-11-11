@@ -178,7 +178,7 @@ function rawAns(id, sci) {
   const x = (document.getElementById(id + 'x').value || '').trim();
   return x ? `${el.value} × 10^${x}` : el.value;
 }
-const tolOf = (o, v) => o.tol ?? (o.sci ? Math.abs(v) * 0.015 : Math.max(Math.abs(v) * 0.01, 0.01));
+const tolOf = (o, v) => o.tol ?? (o.sci ? Math.abs(v) * 0.015 : Math.abs(v - Math.round(v)) < 1e-9 ? Math.min(Math.max(Math.abs(v) * 0.01, 0.01), 0.5) : Math.max(Math.abs(v) * 0.01, 0.01));
 const fmtAns = (o) => o.sci ? sciTxt(o.ans) : fr(o.ans);
 /* Écart d'une puissance de dix exacte : bon début, mauvais exposant */
 function sciError(x, ans) {

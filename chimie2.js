@@ -185,12 +185,12 @@ function genK8(level) {
       ? num({ skill: 'K8', level, q: `L’air d’une pièce contient <b>${fr(pct, 2)} %</b> de monoxyde de carbone. Combien cela fait-il en ppm ?`, unit: 'ppm', ans: ppm,
           errs: [{ v: ppm / 100, code: 'p10', msg: '1 % = 10 000 ppm : on multiplie par 10 000.' }, { v: ppm * 10, code: 'p10', msg: '1 % = 10 000 ppm, pas 100 000.' }],
           hints: ['1 % = 10 000 ppm.', `${fr(pct, 2)} × 10 000`], sol: [ST.formule('1 % = 10 000 ppm'), ST.calc(`${fr(pct, 2)} × 10 000 = ${ppm} ppm`)] })
-      : num({ skill: 'K8', level, q: `Un détecteur affiche <b>${ppm} ppm</b> de monoxyde de carbone. Combien cela fait-il en pourcentage ?`, unit: '%', ans: pct,
+      : num({ skill: 'K8', level, q: `Un détecteur affiche <b>${ppm} ppm</b> de monoxyde de carbone. Combien cela fait-il en pourcentage ?`, unit: '%', ans: pct, tol: pct * 0.01,
           errs: [{ v: pct * 100, code: 'p10', msg: 'On divise par 10 000 (1 % = 10 000 ppm).' }, { v: pct / 10, code: 'p10', msg: '1 % = 10 000 ppm, pas 100 000.' }],
           hints: ['1 % = 10 000 ppm.', `${ppm} ÷ 10 000`], sol: [ST.formule('1 % = 10 000 ppm'), ST.calc(`${ppm} ÷ 10 000 = ${fr(pct, 2)} %`)] });
   }
   const [Lr, l, h] = pick([[4, 5, 2.5], [3, 4, 2.5], [5, 6, 2.5], [4, 4, 2.5]]), V = Lr * l * h, VL = V * 1000, co = pick([5, 10, 15, 20, 25]), pct = co / VL * 100;
-  return num({ skill: 'K8', level, q: `Une pièce mesure ${Lr} m × ${l} m × ${fr(h, 1)} m. Un chauffage mal réglé y rejette <b>${co} L</b> de monoxyde de carbone. Quel pourcentage de l’air cela représente-t-il ? (1 m³ = 1 000 L)`, unit: '%', ans: pct, tol: pct * 0.03,
+  return num({ skill: 'K8', level, q: `Une pièce mesure ${Lr} m × ${l} m × ${fr(h, 1)} m. Un chauffage mal réglé y rejette <b>${co} L</b> de monoxyde de carbone. Quel pourcentage de l’air cela représente-t-il ? Arrondis au millième. (1 m³ = 1 000 L)`, unit: '%', ans: pct, tol: Math.max(pct * 0.03, 0.0006),
     errs: [{ v: co / V * 100, code: 'noconv', msg: 'Le volume de la pièce est en m³ et celui du gaz en L : convertis d’abord (1 m³ = 1 000 L).' }, { v: co / VL, code: 'question', msg: 'Ça, c’est une fraction. Pour un pourcentage, multiplie par 100.' }],
     hints: [`Volume de la pièce : ${Lr} × ${l} × ${fr(h, 1)} = ${fr(V, 1)} m³ = ${fr(VL, 0)} L.`, `${co} ÷ ${fr(VL, 0)} × 100`],
     sol: [ST.formule('pourcentage = volume du gaz ÷ volume d’air × 100'), ST.conv(`V = ${Lr} × ${l} × ${fr(h, 1)} = ${fr(V, 1)} m³ = ${fr(VL, 0)} L`), ST.calc(`${co} ÷ ${fr(VL, 0)} × 100 = ${fr(pct, 3)} % (soit ${fr(pct * 10000, 0)} ppm)`)] });

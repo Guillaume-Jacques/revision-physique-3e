@@ -32,7 +32,7 @@ const ATOMS = [
   ['H', 'hydrogène', 1, 1], ['He', 'hélium', 2, 4], ['Li', 'lithium', 3, 7], ['C', 'carbone', 6, 12], ['N', 'azote', 7, 14],
   ['O', 'oxygène', 8, 16], ['F', 'fluor', 9, 19], ['Ne', 'néon', 10, 20], ['Na', 'sodium', 11, 23], ['Mg', 'magnésium', 12, 24],
   ['Al', 'aluminium', 13, 27], ['Si', 'silicium', 14, 28], ['P', 'phosphore', 15, 31], ['S', 'soufre', 16, 32], ['Cl', 'chlore', 17, 35],
-  ['K', 'potassium', 19, 39], ['Ca', 'calcium', 20, 40], ['Fe', 'fer', 26, 56], ['Cu', 'cuivre', 29, 63], ['Zn', 'zinc', 30, 65],
+  ['K', 'potassium', 19, 39], ['Ca', 'calcium', 20, 40], ['Fe', 'fer', 26, 56], ['Cu', 'cuivre', 29, 63], ['Zn', 'zinc', 30, 64],
 ];
 const atomOf = (x) => ATOMS.find((a) => a[0] === x);
 /* Ions monoatomiques : symbole, charge, nom */
@@ -124,7 +124,7 @@ Object.assign(FICHES, {
     points: [
       'Un rapport, c’est une <b>division</b> : la grande valeur ÷ la petite.',
       'Taille : atome ≈ 10⁻¹⁰ m, noyau ≈ 10⁻¹⁵ m. Rapport = 10⁵ = 100 000 : l’atome est presque vide.',
-      'Masse : le noyau pèse environ 3 700 fois plus que les électrons : la masse est concentrée dans le noyau.',
+      'Masse : pour l’atome d’oxygène (ou de carbone), le noyau pèse environ 3 700 fois plus que les électrons ; pour les autres atomes, c’est du même ordre (plusieurs milliers de fois). La masse est concentrée dans le noyau.',
       'On termine toujours par une phrase qui explique ce que veut dire le nombre.',
     ],
     formula: 'Rapport = grande valeur ÷ petite valeur',
@@ -159,7 +159,7 @@ Object.assign(CARDS, {
   K2: { title: 'A et Z', body: 'Z = protons = électrons<br>A = nucléons<br>neutrons = A − Z' },
   K3: { title: 'Puissances de 10', body: '× : on additionne<br>÷ : on soustrait<br>10⁻¹⁰ ÷ 10⁻¹⁵ = 10⁵' },
   K4: { title: 'Masse d’un atome', body: 'A × 1,67 × 10⁻²⁷<br>+ Z × 9,11 × 10⁻³¹ (kg)' },
-  K5: { title: 'Rapports', body: 'Atome ÷ noyau ≈ 10⁵ : vide<br>Noyau ÷ électrons ≈ 3 700' },
+  K5: { title: 'Rapports', body: 'Atome ÷ noyau ≈ 10⁵ : vide<br>Noyau ÷ électrons ≈ 3 700 (oxygène)' },
   K6: { title: 'Formules', body: 'L’indice compte l’atome d’avant<br>CO₂ = 1 C + 2 O' },
   K7: { title: 'Ions', body: 'Perte d’e⁻ → cation +<br>Gain d’e⁻ → anion −<br>Noyau inchangé' },
 });
@@ -360,7 +360,7 @@ const K5_QCM = [
     { t: 'Le noyau est plus grand que l’atome', msg: 'C’est l’inverse : l’atome est 100 000 fois plus grand que son noyau.', code: 'notion' },
     { t: 'Les électrons sont dans le noyau', msg: 'Non : ils sont autour, très loin du noyau.', code: 'notion' }],
     why: 'Un noyau minuscule, des électrons très loin : entre les deux, du vide. On parle de structure lacunaire.' },
-  { level: 2, q: 'Le noyau d’un atome est environ 3 700 fois plus lourd que l’ensemble de ses électrons. On en conclut que :', choices: [
+  { level: 2, q: 'Le noyau de l’atome d’oxygène est environ 3 700 fois plus lourd que l’ensemble de ses électrons. On en conclut que :', choices: [
     { t: 'La masse de l’atome est concentrée dans son noyau', ok: true },
     { t: 'Les électrons sont plus lourds que le noyau', msg: 'C’est l’inverse : c’est le noyau qui est 3 700 fois plus lourd.', code: 'notion' },
     { t: 'L’atome est vide', msg: 'Le vide se déduit du rapport des tailles. Ici on compare des masses.', code: 'notion' }],
@@ -731,7 +731,7 @@ COURS.push({
         <div class="formula">mₚ = mₙ = 1,67 × 10⁻²⁷ kg • mₑ = 9,11 × 10⁻³¹ kg</div>
         <div class="ex"><b>Exemple : le carbone</b> ${nuc(12, 6, 'C')}, soit 12 nucléons et 6 électrons.<br>
         m = 12 × 1,67 × 10⁻²⁷ + 6 × 9,11 × 10⁻³¹<br>m ≈ 2,004 × 10⁻²⁶ + 0,0005 × 10⁻²⁶ ≈ <b>2,00 × 10⁻²⁶ kg</b></div>
-        <p>Le noyau pèse environ <b>3 700 fois plus</b> que l’ensemble des électrons. On dit que la masse de l’atome est <b>concentrée dans son noyau</b>.</p>
+        <p>Pour le carbone comme pour l’oxygène, le noyau pèse environ <b>3 700 fois plus</b> que l’ensemble des électrons (et plusieurs milliers de fois plus pour les autres atomes). On dit que la masse de l’atome est <b>concentrée dans son noyau</b>.</p>
         <p>À la calculatrice, pour ce rapport, mets tout le bas de la division entre parenthèses : (12 × 1,67 × 10⁻²⁷) ÷ (6 × 9,11 × 10⁻³¹).</p>`,
       retenir: 'm(atome) = A × 1,67 × 10⁻²⁷ + Z × 9,11 × 10⁻³¹ kg. Le noyau pèse environ 3 700 fois plus que les électrons : la masse est dans le noyau.' },
     { title: 'Les molécules',

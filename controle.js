@@ -139,7 +139,7 @@ const CTRL = {
   },
   /* Q3 : vitesse en m/s, durée en h-min → distance */
   mixte(level, real) {
-    const [trip, v, H, M] = real ? ['Marseille → Nice', 23.8, 2, 20] : [pick(['Paris → Rouen', 'Lyon → Grenoble', 'Nantes → Angers', 'Dijon → Besançon']), pick([22.5, 25, 27.5, 19.5, 24]), rnd(1, 2), pick([10, 20, 30, 40])];
+    const [trip, v, H, M] = real ? ['Marseille → Nice', 23.8, 2, 20] : pick([['Paris → Lille', 25, 2, 30], ['Lyon → Grenoble', 22.5, 1, 20], ['Dijon → Besançon', 19.5, 1, 20], ['Paris → Rouen', 24, 1, 30], ['Bordeaux → Toulouse', 27.5, 2, 30], ['Nantes → Rennes', 24, 1, 10]]);
     const s = H * 3600 + M * 60, d = v * s, km = d / 1000;
     return stepsItem('V5', level, `Une voiture fait le trajet ${trip} en <b>${hms(H, M)}</b>, à la vitesse moyenne de <b>${fr(v)} m/s</b>. Quelle est la distance parcourue ? Donne-la en km.`, [
       fStep('d = v × t', [['d = v ÷ t', 'Pour une distance, on multiplie la vitesse par la durée.'], ['d = t ÷ v', 'Ça, ce n’est pas une distance.']], 'd = v × t'),

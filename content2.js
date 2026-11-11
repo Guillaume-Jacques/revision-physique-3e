@@ -192,7 +192,7 @@ function genP1(level) {
       const m = pick([60, 70, 80, 90, 120]);
       const ans = m * 1.6;
       return num({ skill: 'P1', level, q: `Un astronaute de masse <b>${m} kg</b> marche sur la Lune (g = 1,6 N/kg). Quel est son poids sur la Lune ?`, unit: 'N', ans,
-        errs: [{ v: m * 9.8, code: 'notion', msg: 'Tu as pris g de la Terre. Sur la Lune, g = 1,6 N/kg.' }, { v: m, code: 'poidsmasse', msg: 'La masse reste 80 kg partout ; le poids, lui, se calcule avec P = m × g.' }],
+        errs: [{ v: m * 9.8, code: 'notion', msg: 'Tu as pris g de la Terre. Sur la Lune, g = 1,6 N/kg.' }, { v: m, code: 'poidsmasse', msg: `La masse reste ${m} kg partout ; le poids, lui, se calcule avec P = m × g.` }],
         hints: ['P = m × g avec le g de la Lune.', `${m} × 1,6`],
         sol: [ST.cherche('le poids sur la Lune, en N.'), ST.formule('P = m × g, avec g Lune = 1,6 N/kg'), ST.calc(`P = ${m} × 1,6 = ${fr(ans)} N`),
               ST.phrase(`sur la Lune, son poids vaut ${fr(ans)} N ; sa masse reste ${m} kg.`)] });
@@ -303,13 +303,13 @@ function genRedac(skill, level) {
   if (skill === 'V5') {
     const vk = pick([36, 18, 27, 45, 54]), d = pick([100, 200, 400, 150, 300]);
     const v = vk / 3.6, t = d / v;
-    return stepsItem('V5', level, `Un cycliste roule à <b>${vk} km/h</b>. Combien de temps, en secondes, met-il pour parcourir <b>${d} m</b> ? Arrondis au dixième.`, [
+    return stepsItem('V5', level, `Un scooter roule à <b>${vk} km/h</b>. Combien de temps, en secondes, met-il pour parcourir <b>${d} m</b> ? Arrondis au dixième.`, [
       fStep('t = d ÷ v', [['t = v ÷ d', 'La distance va en haut : t = d ÷ v.', 'inverse'], ['t = d × v', 'Pour une durée, on divise la distance par la vitesse.']], 't = d ÷ v'),
       nStep('Conversion de la vitesse', `Les mètres et les secondes vont ensemble : convertis ${vk} km/h en m/s.`, v, 'm/s', null,
         [{ v: vk * 3.6, code: 'conv36', msg: 'Des km/h aux m/s on divise par 3,6.' }], `🔁 ${vk} ÷ 3,6 = ${fr(v)} m/s`, 0.011),
       nStep('Le calcul', 'Calcule t et choisis l’unité.', t, 's', ['s', 'h', 'm/s'],
         [{ v: d / vk, code: 'noconv', msg: 'Utilise la vitesse en m/s, avec la distance en m.' }, { v: v / d, code: 'inverse', msg: 'Division à l’envers.' }], `🧮 t = ${d} ÷ ${fr(v)} ≈ ${fr(t, 1)} s`, 0.11),
-      pStep(`Le cycliste met environ ${fr(t, 1)} s pour parcourir ${d} m.`, [[`Le cycliste roule à ${fr(v)} m/s.`, 'C’est une étape du calcul, pas ce qu’on demande.'], [`Le cycliste parcourt ${fr(t, 1)} m.`, 'Le résultat est une durée, en secondes.']]),
+      pStep(`Le scooter met environ ${fr(t, 1)} s pour parcourir ${d} m.`, [[`Le scooter roule à ${fr(v)} m/s.`, 'C’est une étape du calcul, pas ce qu’on demande.'], [`Le scooter parcourt ${fr(t, 1)} m.`, 'Le résultat est une durée, en secondes.']]),
     ]);
   }
   if (skill === 'V6') {

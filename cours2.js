@@ -273,7 +273,7 @@ COURS.push(
       { title: 'Retrouver une masse', enonce: 'Un dynamomètre indique que le poids d’un objet vaut 29,4 N sur Terre (g = 9,8 N/kg). Quelle est sa masse ?', ans: 3, unit: 'kg',
         steps: ['📐 P = m × g, donc m = P ÷ g.', '🧮 m = 29,4 ÷ 9,8 = 3 kg.'], rep: 'La masse de l’objet est de 3 kg.', piege: 'Multiplier 29,4 × 9,8 : pour isoler m, on divise.' },
       { title: 'La trousse', enonce: 'Une trousse a une masse de 300 g. Calcule son poids sur Terre (g = 9,8 N/kg).', ans: 2.94, unit: 'N',
-        steps: ['🔁 La masse doit être en kg : 300 g = 0,3 kg.', '🧮 P = 0,3 × 9,8 = 2,94 N.'], rep: 'Le poids de la trousse est de 2,94 N.', piege: 'Garder 300 donne 2 940 N, le poids d’une petite voiture !' },
+        steps: ['🔁 La masse doit être en kg : 300 g = 0,3 kg.', '🧮 P = 0,3 × 9,8 = 2,94 N.'], rep: 'Le poids de la trousse est de 2,94 N.', piege: 'Garder 300 donne 2 940 N, le poids d’une grosse moto de 300 kg !' },
       { title: 'Le robot sur Mars', enonce: 'Un robot a une masse de 50 kg. Calcule son poids sur Mars (g = 3,7 N/kg).', ans: 185, unit: 'N',
         steps: ['📐 P = m × g, avec g de Mars.', '🧮 P = 50 × 3,7 = 185 N.'], rep: 'Sur Mars, le poids du robot est de 185 N.' },
       { title: 'De la Terre à la Lune', enonce: 'Sur Terre, le poids d’une caisse vaut 490 N (g = 9,8 N/kg). Quel serait son poids sur la Lune (g = 1,6 N/kg) ?', ans: 80, unit: 'N',

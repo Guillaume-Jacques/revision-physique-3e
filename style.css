@@ -302,7 +302,7 @@ td.tact { text-align: right; vertical-align: top; width: 1%; white-space: nowrap
 .subjs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 0; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow); }
 .subj { min-height: 44px; border-radius: 999px; background: none; color: var(--muted); font-weight: 800; font-size: 1em; }
 .subj.on { background: var(--accent); color: #fff; }
-.acts.subj-chimie #ctrlAct, .acts.subj-physique #ctrlKAct { display: none; }
+.acts.subj-chimie #ctrlAct, .acts.subj-physique #ctrlKAct, .acts.subj-physique #ctrlIAct { display: none; }
 .answer .pm { flex: none; min-width: 48px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-weight: 900; font-size: 1.2em; }
 .answer.sci { align-items: center; flex-wrap: nowrap; }
 .answer.sci > input { flex: 1 1 40%; }
@@ -344,6 +344,7 @@ table.cmp td { font-size: .95em; }
 /* Même ordre des activités en physique et en chimie (30/10) :
    Contrôle type (toute la largeur), puis Mes cours | Rédiger, Contrôle blanc | Bats ta note, puis Ma calculatrice en chimie */
 .acts #ctrlAct, .acts #ctrlKAct { order: 1; grid-column: 1 / -1; }
+.acts #ctrlIAct { order: 0; grid-column: 1 / -1; }
 .acts #cours { order: 2; }
 .acts #redac { order: 3; }
 .acts #boss { order: 4; }

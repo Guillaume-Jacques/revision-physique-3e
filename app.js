@@ -1905,7 +1905,7 @@ function subjStats(s, st, sj) {
   const t = st.totals || {}, ch = sj === 'chimie', part = (all, c) => ch ? (c || 0) : Math.max(0, (all || 0) - (c || 0));
   const ks = SKILLS.filter((k) => (k.subj || 'physique') === sj), open = ks.filter((k) => isOpen(s, k));
   const started = open.filter((k) => s.mastery[k.id] > 0 || (s.lastPrac || {})[k.id]);
-  const cs = COURS.filter((c) => coursSubj(c) === sj), C = ch ? s.ctrlK : s.ctrl;
+  const cs = COURS.filter((c) => coursSubj(c) === sj), C = ch ? (s.ctrlI && s.ctrlI.hist && s.ctrlI.hist.length ? s.ctrlI : s.ctrlK) : s.ctrl;
   return { n7: part(t.n7, t.n7_chim), ok7: part(t.ok7, t.ok7_chim), n: part(t.n, t.n_chim), ok: part(t.ok, t.ok_chim), ms: part(t.ms, t.ms_chim),
     last: ch ? t.last_chim : (t.last_phys !== undefined ? t.last_phys : t.last), open: open.length, total: ks.length, started: started.length,
     medals: open.filter((k) => medalOf(s.mastery[k.id]) !== 'none').length, cd: cs.filter((c) => ((s.cours || {})[c.id] || {}).done).length, ct: cs.length,

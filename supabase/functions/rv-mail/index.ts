@@ -28,6 +28,8 @@ const ERR: Record<string, string> = {
   ajuste: 'écrit une équation non ajustée', coefIndice: 'confond coefficient et petit chiffre d’une formule',
   masseConso: 'oublie la conservation de la masse', reacProd: 'confond réactifs et produits', testIon: 'se trompe dans un test d’ion ou de gaz',
   phSens: 'lit le pH à l’envers (pH bas = très acide)', dilution: 'se trompe sur l’effet d’une dilution sur le pH',
+  isotope: 'confond ce qui change entre deux isotopes (les neutrons)', chargeIon: 'compte mal les charges en excès d’un ion',
+  formIon: 'écrit mal la formule d’un ion', rayonDiam: 'prend le rayon d’un atome pour son diamètre',
 };
 
 async function rpc(fn: string, args: Record<string, unknown>) {

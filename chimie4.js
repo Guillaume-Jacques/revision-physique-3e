@@ -54,7 +54,7 @@ Object.assign(FICHES, {
     points: [
       'Dans un objet : <b>N = masse de l’objet ÷ masse d’un atome</b>, les deux en kg. 1 g = 0,001 kg.',
       'Alignés : <b>N = longueur ÷ diamètre d’un atome</b>, les deux en m. 2,5 cm = 0,025 m.',
-      'Le <b>diamètre</b> est le double du rayon : rayon 125 × 10⁻¹² m → diamètre 250 × 10⁻¹² m.',
+      'Le <b>diamètre</b> est le double du rayon : rayon 1,25 × 10⁻¹⁰ m → diamètre 2,5 × 10⁻¹⁰ m.',
       'À la calculatrice, mets le bas de la division entre parenthèses.',
     ],
     formula: 'N = total ÷ ce que vaut UN atome (mêmes unités)',
@@ -80,8 +80,8 @@ const ISO4 = [
   ['H', 'hydrogène', 1, [1, 2, 3]], ['C', 'carbone', 6, [12, 13, 14]], ['N', 'azote', 7, [14, 15]], ['O', 'oxygène', 8, [16, 17, 18]],
   ['Mg', 'magnésium', 12, [24, 25, 26]], ['Cl', 'chlore', 17, [35, 37]], ['Cu', 'cuivre', 29, [63, 65]],
 ];
-/* Rayons d'atomes, en 10⁻¹² m (valeur du cahier pour l'aluminium) */
-const RAD4 = [['Al', 125], ['Fe', 140], ['Cu', 135], ['C', 70], ['Na', 180], ['Mg', 150], ['Zn', 135]];
+/* Rayons d'atomes, en 10⁻¹⁰ m, écrits comme dans le cahier (aluminium : 1,25 × 10⁻¹⁰ m) */
+const RAD4 = [['Al', 1.25], ['Fe', 1.4], ['Cu', 1.35], ['Na', 1.8], ['Mg', 1.5], ['Zn', 1.35]];
 const pl4 = (n) => (n > 1 ? 's' : '');
 const chTxt = (q) => { const n = Math.abs(q); return `${n} charge${pl4(n)} ${q > 0 ? 'positive' : 'négative'}${pl4(n)} en excès`; };
 const mAt4 = (X) => { const [, , Z, A] = atomOf(X); return A * MP + Z * ME; };
@@ -335,9 +335,9 @@ function genK13(level) {
         hints: ['1 kg = 1 000 g.', `${fr(m, 1)} ÷ 1 000`], sol: [ST.conv(`${fr(m, 1)} g = ${fr(m, 1)} ÷ 1 000 = ${fr(ans, 4)} kg`)] });
     }
     const [X, rad] = pick(RAD4), name = atomOf(X)[1];
-    return num({ skill: 'K13', level, q: `Le rayon d’un atome ${dn(name)} vaut <b>${rad} × 10⁻¹² m</b>. Combien vaut son <b>diamètre</b> ? Réponds en « × 10⁻¹² m ».`, unit: '× 10⁻¹² m', ans: 2 * rad,
+    return num({ skill: 'K13', level, q: `Le rayon d’un atome ${dn(name)} vaut <b>${fr(rad)} × 10⁻¹⁰ m</b>. Combien vaut son <b>diamètre</b> ? Réponds en « × 10⁻¹⁰ m ».`, unit: '× 10⁻¹⁰ m', ans: 2 * rad,
       errs: [{ v: rad / 2, code: 'rayonDiam', msg: 'Le diamètre est le DOUBLE du rayon, pas la moitié.' }, { v: rad, code: 'rayonDiam', msg: 'Ça, c’est le rayon. Le diamètre vaut 2 fois le rayon.' }],
-      hints: ['Diamètre = 2 × rayon.', `2 × ${rad}`], sol: [ST.formule('diamètre = 2 × rayon'), ST.calc(`2 × ${rad} × 10⁻¹² = ${2 * rad} × 10⁻¹² m`)] });
+      hints: ['Diamètre = 2 × rayon.', `2 × ${fr(rad)}`], sol: [ST.formule('diamètre = 2 × rayon'), ST.calc(`2 × ${fr(rad)} × 10⁻¹⁰ = ${fr(2 * rad)} × 10⁻¹⁰ m`)] });
   }
   if (level === 2 || r < 0.35) {
     const [txt, X, m] = pick([['1 g d’aluminium', 'Al', 1], ['2 g d’aluminium', 'Al', 2], ['0,5 g d’aluminium', 'Al', 0.5], ['5 g de fer', 'Fe', 5], ['1 g de fer', 'Fe', 1], ['3 g de cuivre', 'Cu', 3], ['1 g de cuivre', 'Cu', 1], ['1 g de carbone', 'C', 1], ['10 g de zinc', 'Zn', 10]]);
@@ -348,12 +348,12 @@ function genK13(level) {
       sol: [ST.cherche('un nombre d’atomes.'), ST.formule('N = masse de l’objet ÷ masse d’un atome'), ST.conv(`${fr(m, 1)} g = ${fr(kg, 4)} kg`), ST.calc(`N = ${fr(kg, 4)} ÷ (${sciTxt(ma)}) ≈ ${sciTxt(ans)}`),
             ST.phrase(`Il y a environ ${sciTxt(ans)} atomes dans ${txt}.`), ST.piege('laisser la masse en grammes : le résultat serait 1 000 fois trop grand.')] });
   }
-  const [X, rad] = pick(RAD4), name = atomOf(X)[1], L = pick([2.5, 1, 5, 10, 0.5, 4]), d = 2 * rad * 1e-12, ans = (L / 100) / d;
-  return num({ skill: 'K13', level, sci: true, q: `Le rayon d’un atome ${dn(name)} vaut <b>${rad} × 10⁻¹² m</b>. Combien d’atomes ${dn(name)} peut-on aligner sur une distance de <b>${fr(L, 1)} cm</b> ?`, unit: 'atomes', ans,
+  const [X, rad] = pick(RAD4), name = atomOf(X)[1], L = pick([2.5, 1, 5, 10, 0.5, 4]), d = 2 * rad * 1e-10, ans = (L / 100) / d;
+  return num({ skill: 'K13', level, sci: true, q: `Le rayon d’un atome ${dn(name)} vaut <b>${fr(rad)} × 10⁻¹⁰ m</b>. Combien d’atomes ${dn(name)} peut-on aligner sur une distance de <b>${fr(L, 1)} cm</b> ?`, unit: 'atomes', ans,
     errs: [{ v: 2 * ans, code: 'rayonDiam', msg: 'Tu as divisé par le rayon. Un atome occupe son diamètre : 2 × rayon.' }, { v: ans * 100, code: 'noconv', msg: `Le rayon est en mètres : convertis d’abord ${fr(L, 1)} cm en m (÷ 100).` }, { v: 200 * ans, code: 'noconv', msg: 'Deux oublis : convertir les cm en m, et prendre le diamètre (2 × rayon).' }, { v: d / (L / 100), code: 'inverse', msg: 'Division à l’envers : longueur ÷ diamètre.' }],
-    hints: ['Nombre d’atomes = longueur ÷ diamètre d’un atome, les deux en mètres.', `Diamètre = ${2 * rad} × 10⁻¹² m ; ${fr(L, 1)} cm = ${fr(L / 100, 3)} m`],
-    sol: [ST.cherche('un nombre d’atomes.'), ST.formule('N = longueur ÷ diamètre d’un atome'), ST.conv(`diamètre = 2 × ${rad} × 10⁻¹² = ${2 * rad} × 10⁻¹² m ; ${fr(L, 1)} cm = ${fr(L / 100, 3)} m`),
-          ST.calc(`N = ${fr(L / 100, 3)} ÷ (${2 * rad} × 10⁻¹²) ≈ ${sciTxt(ans)}`), ST.phrase(`On peut aligner environ ${sciTxt(ans)} atomes ${dn(name)} sur ${fr(L, 1)} cm.`),
+    hints: ['Nombre d’atomes = longueur ÷ diamètre d’un atome, les deux en mètres.', `Diamètre = ${fr(2 * rad)} × 10⁻¹⁰ m ; ${fr(L, 1)} cm = ${fr(L / 100, 3)} m`],
+    sol: [ST.cherche('un nombre d’atomes.'), ST.formule('N = longueur ÷ diamètre d’un atome'), ST.conv(`diamètre = 2 × ${fr(rad)} × 10⁻¹⁰ = ${fr(2 * rad)} × 10⁻¹⁰ m ; ${fr(L, 1)} cm = ${fr(L / 100, 3)} m`),
+          ST.calc(`N = ${fr(L / 100, 3)} ÷ (${fr(2 * rad)} × 10⁻¹⁰) ≈ ${sciTxt(ans)}`), ST.phrase(`On peut aligner environ ${sciTxt(ans)} atomes ${dn(name)} sur ${fr(L, 1)} cm.`),
           ST.piege('à la calculatrice, mets le bas de la division entre parenthèses.')] });
 }
 
@@ -409,14 +409,14 @@ const K9R = {
   /* Ex. 5 : compter des atomes (cahier : 1 g d'aluminium, 2,5 cm) */
   compte(lv, real) {
     const [X, rad] = real ? RAD4[0] : pick(RAD4.slice(0, 3)), name = atomOf(X)[1], m = real ? 1 : pick([1, 2, 5]), L = real ? 2.5 : pick([2.5, 5, 1, 10]);
-    const ma = mAt4(X), kg = m / 1000, N1 = kg / ma, d = 2 * rad * 1e-12, N2 = (L / 100) / d;
-    return stepsItem('K13', lv, `a) Combien y a-t-il d’atomes ${dn(name)} dans <b>${m} g</b> ${dn(name)} ? Un atome a une masse de ${sciTxt(ma)} kg.<br>b) Le rayon d’un atome ${dn(name)} vaut <b>${rad} × 10⁻¹² m</b>. Combien peut-on en aligner sur une distance de <b>${fr(L, 1)} cm</b> ?`, [
+    const ma = mAt4(X), kg = m / 1000, N1 = kg / ma, d = 2 * rad * 1e-10, N2 = (L / 100) / d;
+    return stepsItem('K13', lv, `a) Combien y a-t-il d’atomes ${dn(name)} dans <b>${m} g</b> ${dn(name)} ? Un atome a une masse de ${sciTxt(ma)} kg.<br>b) Le rayon d’un atome ${dn(name)} vaut <b>${fr(rad)} × 10⁻¹⁰ m</b>. Combien peut-on en aligner sur une distance de <b>${fr(L, 1)} cm</b> ?`, [
       nStep('a) En kilogrammes', `${m} g = … kg`, kg, 'kg', null, [{ v: m * 1000, code: 'noconv', msg: 'En kg, le nombre est plus petit : on divise par 1 000.' }], `🔁 ${m} g = ${fr(kg, 4)} kg`, kg * 0.005),
       sciStep('a) Le nombre d’atomes', `${fr(kg, 4)} ÷ (${sciTxt(ma)}) =`, N1, 'atomes', null, [{ v: N1 * 1000, code: 'noconv', msg: 'La masse de l’objet doit être en kg.' }, { v: ma / kg, code: 'inverse', msg: 'Division à l’envers.' }], `🧮 N = ${fr(kg, 4)} ÷ (${sciTxt(ma)}) ≈ ${sciTxt(N1)} atomes`),
-      nStep('b) Le diamètre', 'Diamètre = 2 × rayon = … × 10⁻¹² m', 2 * rad, '', null, [{ v: rad / 2, code: 'rayonDiam', msg: 'Le diamètre est le double du rayon.' }, { v: rad, code: 'rayonDiam', msg: 'Ça, c’est le rayon.' }], `📏 diamètre = 2 × ${rad} × 10⁻¹² = ${2 * rad} × 10⁻¹² m ; ${fr(L, 1)} cm = ${fr(L / 100, 3)} m`),
-      sciStep('b) Les atomes alignés', `${fr(L / 100, 3)} ÷ (${2 * rad} × 10⁻¹²) =`, N2, 'atomes', null, [{ v: 2 * N2, code: 'rayonDiam', msg: 'Tu as divisé par le rayon : il faut le diamètre.' }, { v: N2 * 100, code: 'noconv', msg: 'La longueur doit être en mètres.' }], `🧮 N = ${fr(L / 100, 3)} ÷ (${2 * rad} × 10⁻¹²) ≈ ${sciTxt(N2)} atomes`),
+      nStep('b) Le diamètre', 'Diamètre = 2 × rayon = … × 10⁻¹⁰ m', 2 * rad, '', null, [{ v: rad / 2, code: 'rayonDiam', msg: 'Le diamètre est le double du rayon.' }, { v: rad, code: 'rayonDiam', msg: 'Ça, c’est le rayon.' }], `📏 diamètre = 2 × ${fr(rad)} × 10⁻¹⁰ = ${fr(2 * rad)} × 10⁻¹⁰ m ; ${fr(L, 1)} cm = ${fr(L / 100, 3)} m`),
+      sciStep('b) Les atomes alignés', `${fr(L / 100, 3)} ÷ (${fr(2 * rad)} × 10⁻¹⁰) =`, N2, 'atomes', null, [{ v: 2 * N2, code: 'rayonDiam', msg: 'Tu as divisé par le rayon : il faut le diamètre.' }, { v: N2 * 100, code: 'noconv', msg: 'La longueur doit être en mètres.' }], `🧮 N = ${fr(L / 100, 3)} ÷ (${fr(2 * rad)} × 10⁻¹⁰) ≈ ${sciTxt(N2)} atomes`),
       pStep(`Il y a environ ${sciTxt(N1)} atomes dans ${m} g ${dn(name)} ; on peut en aligner environ ${sciTxt(N2)} sur ${fr(L, 1)} cm.`,
-        [[`Un atome ${dn(name)} a une masse de ${sciTxt(ma)} kg et un rayon de ${rad} × 10⁻¹² m.`, 'Ce sont les données : on demande deux nombres d’atomes.'],
+        [[`Un atome ${dn(name)} a une masse de ${sciTxt(ma)} kg et un rayon de ${fr(rad)} × 10⁻¹⁰ m.`, 'Ce sont les données : on demande deux nombres d’atomes.'],
          [`Il y a environ ${sciTxt(N1)} atomes dans ${m} g ; on peut en aligner environ ${sciTxt(2 * N2)} sur ${fr(L, 1)} cm.`, 'Le second nombre vient d’une division par le rayon : il faut le diamètre.']]),
     ]);
   },
@@ -525,11 +525,11 @@ if (typeof CHIM_BAT !== 'undefined') CHIM_BAT.push(
     { t: 'Il a un électron de plus', msg: 'Les deux atomes ont 8 électrons.', code: 'isotope' },
     { t: 'Il n’est pas plus lourd', msg: 'Si : 17 nucléons contre 16.', code: 'isotope' }],
     why: 'Les deux ont 8 protons. 17 − 8 = 9 neutrons contre 8 : un neutron de plus.' },
-  { skill: 'K13', level: 3, q: '🕵️ Chasse à l’erreur : « Rayon d’un atome : 125 × 10⁻¹² m. Sur 2,5 cm, on aligne 0,025 ÷ (125 × 10⁻¹²) = 2 × 10⁸ atomes ». Où est l’erreur ?', choices: [
-    { t: 'Il faut diviser par le diamètre : 250 × 10⁻¹² m', ok: true },
+  { skill: 'K13', level: 3, q: '🕵️ Chasse à l’erreur : « Rayon d’un atome : 1,25 × 10⁻¹⁰ m. Sur 2,5 cm, on aligne 0,025 ÷ (1,25 × 10⁻¹⁰) = 2 × 10⁸ atomes ». Où est l’erreur ?', choices: [
+    { t: 'Il faut diviser par le diamètre : 2,5 × 10⁻¹⁰ m', ok: true },
     { t: '2,5 cm ne font pas 0,025 m', msg: 'Si : 2,5 ÷ 100 = 0,025 m.', code: 'noconv' },
     { t: 'Il fallait multiplier', msg: 'Pour savoir combien de fois un atome rentre dans la longueur, on divise.', code: 'formule' }],
-    why: 'Un atome occupe son diamètre : 2 × 125 = 250 × 10⁻¹² m. Résultat : 1 × 10⁸ atomes.' },
+    why: 'Un atome occupe son diamètre : 2 × 1,25 = 2,5 × 10⁻¹⁰ m. Résultat : 1 × 10⁸ atomes.' },
   { skill: 'K13', level: 2, q: '🕵️ Chasse à l’erreur : « Dans 1 g d’aluminium : 1 ÷ (4,51 × 10⁻²⁶) = 2,2 × 10²⁵ atomes ». Où est l’erreur ?', choices: [
     { t: 'La masse doit être en kg : 0,001 kg', ok: true },
     { t: 'Il fallait multiplier', msg: 'Nombre d’atomes = masse de l’objet ÷ masse d’un atome : c’est bien une division.', code: 'formule' },
@@ -629,18 +629,18 @@ COURS.splice(COURS.findIndex((c) => c.id === 'C6') + 1, 0, {
       html: `<p>Ce sont les exercices 1 et 2 de ton cahier, sur l’aluminium.</p>
         <p><b>Dans 1 g d’aluminium.</b> Un atome d’aluminium a une masse de 4,51 × 10⁻²⁶ kg. On met tout en kg : 1 g = 0,001 kg.</p>
         <div class="formula">N = 0,001 ÷ (4,51 × 10⁻²⁶) ≈ 2,2 × 10²²</div>
-        <p><b>Alignés sur 2,5 cm.</b> Le rayon d’un atome vaut 125 × 10⁻¹² m. Un atome occupe son <b>diamètre</b> : 2 × 125 = 250 × 10⁻¹² m. On met tout en mètres : 2,5 cm = 0,025 m.</p>
-        <div class="formula">N = 0,025 ÷ (250 × 10⁻¹²) = 1 × 10⁸</div>
+        <p><b>Alignés sur 2,5 cm.</b> Le rayon d’un atome vaut 1,25 × 10⁻¹⁰ m. Un atome occupe son <b>diamètre</b> : 2 × 1,25 = 2,5 × 10⁻¹⁰ m. On met tout en mètres : 2,5 cm = 0,025 m.</p>
+        <div class="formula">N = 0,025 ÷ (2,5 × 10⁻¹⁰) = 1 × 10⁸</div>
         <p>Cela fait <b>100 millions</b> d’atomes sur 2,5 cm.</p>
         <div class="ex"><b>Les deux pièges :</b> oublier de convertir (g en kg, cm en m), et diviser par le rayon au lieu du diamètre.</div>`,
       retenir: 'N = masse ÷ masse d’un atome (en kg). N = longueur ÷ diamètre (en m). Diamètre = 2 × rayon.',
-      quiz: [{ q: 'Le rayon d’un atome vaut 125 × 10⁻¹² m. Son diamètre vaut :', choices: [{ t: '250 × 10⁻¹² m', ok: true }, { t: '62,5 × 10⁻¹² m', msg: 'Le diamètre est le double du rayon, pas la moitié.' }, { t: '125 × 10⁻¹² m', msg: 'Ça, c’est le rayon.' }] }] },
+      quiz: [{ q: 'Le rayon d’un atome vaut 1,25 × 10⁻¹⁰ m. Son diamètre vaut :', choices: [{ t: '2,5 × 10⁻¹⁰ m', ok: true }, { t: '0,625 × 10⁻¹⁰ m', msg: 'Le diamètre est le double du rayon, pas la moitié.' }, { t: '1,25 × 10⁻¹⁰ m', msg: 'Ça, c’est le rayon.' }] }] },
   ],
   exos: [
     { title: 'Cahier, ex. 1 : dans 1 g d’aluminium', enonce: 'Combien y a-t-il d’atomes d’aluminium dans 1 g d’aluminium ? Un atome d’aluminium a une masse de 4,51 × 10⁻²⁶ kg.', ans: 0.001 / mAt4('Al'), sci: true, unit: 'atomes',
       steps: ['📐 N = masse de l’objet ÷ masse d’un atome.', '🔁 1 g = 0,001 kg.', '🧮 N = 0,001 ÷ (4,51 × 10⁻²⁶) ≈ 2,2 × 10²².'], rep: 'Il y a environ 2,2 × 10²² atomes dans 1 g d’aluminium.', piege: 'Laisser 1 g : le résultat serait 1 000 fois trop grand.' },
-    { title: 'Cahier, ex. 2 : alignés sur 2,5 cm', enonce: 'Le rayon d’un atome d’aluminium vaut 125 × 10⁻¹² m. Combien peut-on aligner d’atomes d’aluminium sur une distance de 2,5 cm ?', ans: 1e8, sci: true, unit: 'atomes',
-      steps: ['📐 N = longueur ÷ diamètre d’un atome.', '🔁 Diamètre = 2 × 125 × 10⁻¹² = 250 × 10⁻¹² m ; 2,5 cm = 0,025 m.', '🧮 N = 0,025 ÷ (250 × 10⁻¹²) = 1 × 10⁸.'], rep: 'On peut aligner 1 × 10⁸ atomes, soit 100 millions.', piege: 'Diviser par le rayon : on trouverait 2 × 10⁸, le double.' },
+    { title: 'Cahier, ex. 2 : alignés sur 2,5 cm', enonce: 'Le rayon d’un atome d’aluminium vaut 1,25 × 10⁻¹⁰ m. Combien peut-on aligner d’atomes d’aluminium sur une distance de 2,5 cm ?', ans: 1e8, sci: true, unit: 'atomes',
+      steps: ['📐 N = longueur ÷ diamètre d’un atome.', '🔁 Diamètre = 2 × 1,25 × 10⁻¹⁰ = 2,5 × 10⁻¹⁰ m ; 2,5 cm = 0,025 m.', '🧮 N = 0,025 ÷ (2,5 × 10⁻¹⁰) = 1 × 10⁸.'], rep: 'On peut aligner 1 × 10⁸ atomes, soit 100 millions.', piege: 'Diviser par le rayon : on trouverait 2 × 10⁸, le double.' },
     { title: 'Cahier, ex. 3 : l’ion aluminium', enonce: `L’ion aluminium a pour formule chimique Al³⁺. Donne la composition exacte de cet ion. L’atome s’écrit ${nuc(27, 13, 'Al')}.`, ans: 10, unit: 'électrons',
       steps: ['Le noyau ne change pas : 13 protons et 27 − 13 = 14 neutrons.', '3+ : 3 charges positives en excès, l’atome a perdu 3 électrons.', 'Électrons : 13 − 3 = 10.'], rep: 'L’ion Al³⁺ contient 13 protons, 14 neutrons et 10 électrons.', piege: 'Écrire 16 électrons : une charge + veut dire des électrons en moins.' },
     { title: 'L’ion sodium (cahier)', enonce: `L’atome de sodium ${nuc(23, 11, 'Na')} perd un électron. Compte les charges de l’ion et écris sa formule.`, ans: 10, unit: 'électrons',
@@ -659,8 +659,8 @@ COURS.splice(COURS.findIndex((c) => c.id === 'C6') + 1, 0, {
       steps: ['Noyau inchangé : 12 protons et 24 − 12 = 12 neutrons.', '2+ : l’atome a perdu 2 électrons, 12 − 2 = 10.'], rep: 'L’ion Mg²⁺ contient 12 protons, 12 neutrons et 10 électrons.' },
     { title: 'Dans 5 g de fer', enonce: 'Combien y a-t-il d’atomes de fer dans un clou de 5 g ? Un atome de fer a une masse de 9,35 × 10⁻²⁶ kg.', ans: 0.005 / 9.35e-26, sci: true, unit: 'atomes',
       steps: ['🔁 5 g = 0,005 kg.', '🧮 N = 0,005 ÷ (9,35 × 10⁻²⁶) ≈ 5,35 × 10²².'], rep: 'Le clou contient environ 5,35 × 10²² atomes de fer.' },
-    { title: 'Alignés sur 1 cm', enonce: 'Le rayon d’un atome de cuivre vaut 135 × 10⁻¹² m. Combien d’atomes de cuivre peut-on aligner sur 1 cm ?', ans: 0.01 / 270e-12, sci: true, unit: 'atomes',
-      steps: ['🔁 Diamètre = 2 × 135 × 10⁻¹² = 270 × 10⁻¹² m ; 1 cm = 0,01 m.', '🧮 N = 0,01 ÷ (270 × 10⁻¹²) ≈ 3,7 × 10⁷.'], rep: 'On peut aligner environ 3,7 × 10⁷ atomes de cuivre, soit 37 millions.' },
+    { title: 'Alignés sur 1 cm', enonce: 'Le rayon d’un atome de cuivre vaut 1,35 × 10⁻¹⁰ m. Combien d’atomes de cuivre peut-on aligner sur 1 cm ?', ans: 0.01 / 270e-12, sci: true, unit: 'atomes',
+      steps: ['🔁 Diamètre = 2 × 1,35 × 10⁻¹⁰ = 2,7 × 10⁻¹⁰ m ; 1 cm = 0,01 m.', '🧮 N = 0,01 ÷ (2,7 × 10⁻¹⁰) ≈ 3,7 × 10⁷.'], rep: 'On peut aligner environ 3,7 × 10⁷ atomes de cuivre, soit 37 millions.' },
   ],
 });
 
